@@ -1,0 +1,11 @@
+create extension if not exists "pgcrypto";
+create type order_status as enum ('awaiting_payment','paid','ready_for_search','processing','completed','failed');
+create table profiles(id uuid primary key references auth.users(id) on delete cascade,email text not null,role text not null default 'customer',created_at timestamptz not null default now());
+create table packages(id uuid primary key default gen_random_uuid(),name text not null,lead_count integer not null,price_usd numeric(10,2) not null,active boolean not null default true);
+create table orders(id uuid primary key default gen_random_uuid(),order_code text unique not null,user_id uuid not null references profiles(id),package_id uuid not null references packages(id),status order_status not null default 'awaiting_payment',payment_id text,payment_status text,actor_run_id text,dataset_id text,filters jsonb,apify_input jsonb,lead_count_returned integer default 0,csv_path text,xlsx_path text,email text not null,error_message text,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table saved_templates(id uuid primary key default gen_random_uuid(),user_id uuid not null references profiles(id) on delete cascade,name text not null,filters jsonb not null,created_at timestamptz not null default now());
+insert into packages(name,lead_count,price_usd) values ('Starter',10000,30),('Growth',25000,75),('Scale',50000,145);
+alter table profiles enable row level security; alter table orders enable row level security; alter table saved_templates enable row level security;
+create policy "profiles own row" on profiles for select using (auth.uid()=id);
+create policy "orders own rows" on orders for select using (auth.uid()=user_id);
+create policy "templates own rows" on saved_templates for all using (auth.uid()=user_id) with check (auth.uid()=user_id);
