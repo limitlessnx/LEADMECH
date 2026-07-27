@@ -1,22 +1,57 @@
 # Leadmech
 
-Responsive Next.js lead-generation platform with crypto checkout, Supabase-ready storage, Apify integration placeholders, and importable n8n workflows.
+Leadmech is a mobile-first Next.js lead-search SaaS for selling fixed lead packages, taking crypto payments, running an Apify actor, and delivering cleaned CSV/XLSX files through Supabase Storage and Resend email.
 
-## Included
+## Production stack
 
-- Mobile-first website suitable for desktop
-- Three fixed lead packages
-- Checkout, search builder, review page, dashboard, and admin prototype
-- Supabase schema and environment placeholders
-- NOWPayments and Apify API placeholders
-- n8n payment, search-start, and completion workflows
-- CSV and Excel delivery for up to 50,000 lead rows
+- Next.js on Vercel
+- Supabase Auth, Postgres, and private Storage
+- NOWPayments crypto checkout and IPN webhook
+- Apify actor runs with completion webhook
+- Resend transactional emails
+- Optional n8n workflow drafts in `/n8n`
 
 ## Packages
 
-- $30: 10,000 leads
-- $75: 25,000 leads
-- $145: 50,000 leads
+- Starter: $30 for 10,000 lead rows
+- Growth: $75 for 25,000 lead rows
+- Scale: $145 for 50,000 lead rows
+
+## Main routes
+
+- `/auth` - sign in or create account
+- `/checkout?package=starter|growth|scale` - create a NOWPayments invoice
+- `/search?order=<orderId>` - paid-order search builder
+- `/review?order=<orderId>` - final review before Apify starts
+- `/dashboard` - customer order and file history
+- `/admin` - admin order view for profiles with `role = 'admin'`
+
+## API routes
+
+- `POST /api/payments/nowpayments/create`
+- `POST /api/webhooks/nowpayments`
+- `POST /api/orders/:id/start`
+- `POST /api/webhooks/apify`
+- `GET /api/orders/:id/download?format=csv|xlsx`
+
+## Environment variables
+
+Copy `.env.example` to `.env.local` for local development. Add the same keys in Vercel Production, Preview, and Development environments.
+
+Never commit real API keys or service-role secrets.
+
+Required before full production testing:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NOWPAYMENTS_API_KEY`
+- `NOWPAYMENTS_IPN_SECRET`
+- `APIFY_ACTOR_ID`
+- `APIFY_API_TOKEN`
+- `APIFY_WEBHOOK_SECRET`
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL`
 
 ## Run locally
 
@@ -27,17 +62,11 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-## Environment variables
+## Verification
 
-Copy `.env.example` to `.env.local`. Never commit `.env.local` or real API keys.
+```bash
+npm run build
+npm audit
+```
 
-The n8n-specific setup files are inside `/n8n`.
-
-## Next integrations
-
-1. Supabase authentication, database, and private file storage
-2. NOWPayments checkout and signed payment webhook
-3. n8n deployment and credentials
-4. Real Apify actor input/output mapping
-5. Resend transactional emails
-6. GitHub-to-Vercel deployment
+Both should pass before deployment.

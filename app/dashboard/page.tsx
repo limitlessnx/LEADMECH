@@ -1,3 +1,56 @@
-import Link from 'next/link';import { DashboardShell } from '@/components/DashboardShell';
-const orders=[['LM-00128','25,000','Completed','26 Jul 2026'],['LM-00127','10,000','Processing','26 Jul 2026'],['LM-00119','50,000','Completed','18 Jul 2026']];
-export default function Dashboard(){return <DashboardShell><div className="topbar"><div><h1 style={{margin:0}}>Dashboard</h1><p className="muted">Your searches, files, and payment history.</p></div><Link className="btn btn-primary" href="/search">New search</Link></div><div className="dashboard-grid"><div className="metric"><span className="muted">Total orders</span><strong>3</strong></div><div className="metric"><span className="muted">Leads purchased</span><strong>85k</strong></div><div className="metric"><span className="muted">Completed files</span><strong>4</strong></div></div><div className="card" style={{marginTop:22}}><h2>Recent orders</h2><div className="table-wrap"><table className="table"><thead><tr><th>Order</th><th>Package</th><th>Status</th><th>Date</th><th>Files</th></tr></thead><tbody>{orders.map(o=><tr key={o[0]}><td>{o[0]}</td><td>{o[1]}</td><td><span className={`status ${o[2].toLowerCase()}`}>{o[2]}</span></td><td>{o[3]}</td><td>{o[2]==='Completed'?<><button className="btn btn-secondary">CSV</button> <button className="btn btn-secondary">Excel</button></>:'—'}</td></tr>)}</tbody></table></div></div></DashboardShell>}
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { DashboardShell } from '@/components/DashboardShell';
+import { createServerSupabase } from '@/lib/supabase/server';
+import type { OrderWithPackage } from '@/types/leadmech';
+
+export default async function Dashboard() {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect('/auth?next=/dashboard');
+
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('id,order_code,status,requested_count,delivered_count,delivery_email,search_filters,csv_path,xlsx_path,error_message,created_at,paid_at,started_at,completed_at,packages(id,name,lead_count,price_usd)')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .returns<OrderWithPackage[]>();
+
+  const rows = orders ?? [];
+  const totalLeads = rows.reduce((sum, order) => sum + (order.requested_count ?? order.packages?.lead_count ?? 0), 0);
+  const completedFiles = rows.filter((order) => order.csv_path || order.xlsx_path).length * 2;
+
+  return (
+    <DashboardShell>
+      <div className="topbar">
+        <div><h1 style={{ margin: 0 }}>Dashboard</h1><p className="muted">Your searches, files, and payment history.</p></div>
+        <Link className="btn btn-primary" href="/#pricing">Buy package</Link>
+      </div>
+      <div className="dashboard-grid">
+        <div className="metric"><span className="muted">Total orders</span><strong>{rows.length}</strong></div>
+        <div className="metric"><span className="muted">Leads purchased</span><strong>{totalLeads.toLocaleString('en-GB')}</strong></div>
+        <div className="metric"><span className="muted">Completed files</span><strong>{completedFiles}</strong></div>
+      </div>
+      <div className="card" style={{ marginTop: 22 }}>
+        <h2>Recent orders</h2>
+        <div className="table-wrap">
+          <table className="table">
+            <thead><tr><th>Order</th><th>Package</th><th>Status</th><th>Date</th><th>Files</th></tr></thead>
+            <tbody>
+              {rows.map((order) => (
+                <tr key={order.id}>
+                  <td>{order.order_code}</td>
+                  <td>{(order.requested_count ?? order.packages?.lead_count ?? 0).toLocaleString('en-GB')}</td>
+                  <td><span className={`status ${order.status}`}>{order.status.replaceAll('_', ' ')}</span></td>
+                  <td>{new Date(order.created_at).toLocaleDateString('en-GB')}</td>
+                  <td>{order.status === 'completed' ? <><Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=csv`}>CSV</Link> <Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=xlsx`}>Excel</Link></> : order.status === 'ready_for_search' || order.status === 'paid' ? <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Start</Link> : '-'}</td>
+                </tr>
+              ))}
+              {!rows.length && <tr><td colSpan={5}>No orders yet. Choose a package to begin.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </DashboardShell>
+  );
+}

@@ -63,6 +63,7 @@ values ('Starter',10000,30,true),('Growth',25000,75,true),('Scale',50000,145,tru
 on conflict (name) do update set lead_count=excluded.lead_count,price_usd=excluded.price_usd,active=true;
 
 create index if not exists orders_user_id_idx on public.orders(user_id);
+create index if not exists orders_package_id_idx on public.orders(package_id);
 create index if not exists orders_status_idx on public.orders(status);
 create index if not exists orders_payment_id_idx on public.orders(payment_id);
 create index if not exists orders_apify_run_id_idx on public.orders(apify_run_id);

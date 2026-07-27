@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { getPackage } from '@/lib/packages';
 import { useState } from 'react';
@@ -10,10 +9,34 @@ export function PackageCheckout() {
   const selectedPackage = getPackage(params.get('package'));
   const [singleSearchAccepted, setSingleSearchAccepted] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const ready = singleSearchAccepted && termsAccepted;
 
-  const continueToPayment = () => {
+  const continueToPayment = async () => {
+    setError('');
+    setLoading(true);
     localStorage.setItem('leadmech-package', JSON.stringify(selectedPackage));
+
+    const response = await fetch('/api/payments/nowpayments/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ packageId: selectedPackage.id }),
+    });
+    const data = await response.json();
+    setLoading(false);
+
+    if (response.status === 401) {
+      window.location.href = `/auth?next=${encodeURIComponent(`/checkout?package=${selectedPackage.id}`)}`;
+      return;
+    }
+
+    if (!response.ok) {
+      setError(data.error || 'Unable to start checkout.');
+      return;
+    }
+
+    window.location.href = data.invoiceUrl;
   };
 
   return (
@@ -26,15 +49,16 @@ export function PackageCheckout() {
         <div className="review-row"><span className="muted">Price</span><strong>${selectedPackage.price}</strong></div>
         <div className="review-row"><span className="muted">Delivery</span><strong>CSV + Excel</strong></div>
         <div className="list feature-list">
-          <span>✓ One customised lead search</span>
-          <span>✓ Cleaned contact and company records</span>
-          <span>✓ Permanent dashboard access</span>
-          <span>✓ Completion email with download links</span>
+          <span>OK One customised lead search</span>
+          <span>OK Cleaned contact and company records</span>
+          <span>OK Permanent dashboard access</span>
+          <span>OK Completion email with download links</span>
         </div>
         <label className="check-line"><input type="checkbox" checked={singleSearchAccepted} onChange={(event) => setSingleSearchAccepted(event.target.checked)} /> <span>I understand this purchase includes one search only.</span></label>
         <label className="check-line"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} /> <span>I agree to the Terms and Privacy Policy.</span></label>
+        {error && <p className="error-text">{error}</p>}
         {ready ? (
-          <Link onClick={continueToPayment} className="btn btn-primary btn-wide" href="/search">Continue to crypto payment</Link>
+          <button onClick={continueToPayment} className="btn btn-primary btn-wide" disabled={loading}>{loading ? 'Creating checkout...' : 'Continue to crypto payment'}</button>
         ) : (
           <button className="btn btn-primary btn-wide" disabled>Accept both items to continue</button>
         )}

@@ -1,25 +1,55 @@
 # Leadmech n8n Workflows
 
-Contains three importable workflows:
+These three files are importable workflow drafts for teams that want n8n to orchestrate the same production flow the website API routes now support.
 
-1. NOWPayments confirmation and payment email.
-2. Start Apify search after review.
-3. Receive Apify completion, clean up to 50,000 lead rows, create CSV/XLSX, upload to Supabase, update order, and send completion email.
+## Workflows
+
+1. `01-nowpayments-confirmation.json` receives NOWPayments IPN callbacks and marks an order ready for search.
+2. `02-start-apify-search.json` validates a paid order request and starts the Apify actor.
+3. `03-complete-search-delivery.json` receives Apify completion, cleans up to 50,000 lead rows, creates CSV/XLSX, uploads files to Supabase Storage, marks the order completed, and sends the completion email.
 
 ## Import
-Open n8n > Workflows > Import from File and import all three JSON files. Keep them inactive until credentials are configured.
 
-## Required variables
-See `.env.example`. Never commit real tokens to GitHub.
+Open n8n, go to Workflows, choose Import from File, and import all three JSON files. Keep them inactive until every credential is configured and a test run is successful.
 
-## Supabase
-Run `supabase-required-fields.sql` and create a private bucket named `lead-files`.
+## Production website endpoints
 
-## Website endpoint
-POST to `/webhook/leadmech/start-search` with header `x-leadmech-secret`. The body must include orderId, email, confirmEmail, one valid package count, and any optional actor filters.
+The Vercel app now exposes these production routes:
 
-## Apify
-Create an actor-run-succeeded webhook pointing to `/webhook/leadmech/apify-complete`. The real actor input/output mapping will be checked when the actor JSON is provided.
+- NOWPayments IPN: `https://leadmech.vercel.app/api/webhooks/nowpayments`
+- Apify completion webhook: `https://leadmech.vercel.app/api/webhooks/apify?secret=<APIFY_WEBHOOK_SECRET>`
+- Start search from website: `https://leadmech.vercel.app/api/orders/:orderId/start`
+
+Use the website endpoints for the main customer flow unless you specifically want n8n to replace one of those API routes.
+
+## Required credentials
+
+Do not paste secrets into workflow JSON fields. Create credentials inside n8n for:
+
+- Supabase service role REST access
+- Apify API bearer token
+- Resend API bearer token
+- NOWPayments IPN secret verification
+
+If your n8n plan uses environment variables instead of custom credentials, set the same names shown in the workflow expressions in n8n's secure runtime environment, not in GitHub.
+
+## Required values
+
+- `SUPABASE_URL=https://vioosujcdwfcscwgtgsp.supabase.co`
+- `APP_URL=https://leadmech.vercel.app`
+- Supabase service role key
+- Apify actor ID
+- Apify API token
+- NOWPayments IPN secret
+- Resend API key
+- Resend sender email
 
 ## Output
-The package count is the number of rows: 10,000, 25,000, or 50,000. The exported files use a compact set of useful columns, not the raw actor column count.
+
+Package count means lead rows:
+
+- Starter: 10,000 rows
+- Growth: 25,000 rows
+- Scale: 50,000 rows
+
+The customer receives cleaned CSV/XLSX columns, not the raw actor column layout.

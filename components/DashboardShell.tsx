@@ -1,2 +1,24 @@
 import Link from 'next/link';
-export function DashboardShell({children,active='Dashboard'}:{children:React.ReactNode;active?:string}){return <div className="dashboard-shell"><aside className="sidebar"><Link className="brand" href="/"><span className="logo">L</span>Leadmech</Link><div className="side-nav">{['Dashboard','New Search','Orders','Saved Templates','Account'].map(x=><Link key={x} className={active===x?'active':''} href={x==='Dashboard'?'/dashboard':x==='New Search'?'/search':'/dashboard'}>{x}</Link>)}<Link href="/admin">Admin</Link></div></aside><main className="main">{children}</main></div>}
+
+export function DashboardShell({ children, active = 'Dashboard' }: { children: React.ReactNode; active?: string }) {
+  const items = [
+    ['Dashboard', '/dashboard'],
+    ['New Search', '/search'],
+    ['Orders', '/dashboard'],
+    ['Saved Templates', '/dashboard'],
+    ['Account', '/dashboard'],
+    ['Admin', '/admin'],
+  ];
+
+  return (
+    <div className="dashboard-shell">
+      <aside className="sidebar">
+        <Link className="brand" href="/"><span className="logo">L</span>Leadmech</Link>
+        <div className="side-nav">
+          {items.map(([label, href]) => <Link key={label} className={active === label ? 'active' : ''} href={href}>{label}</Link>)}
+        </div>
+      </aside>
+      <main className="main">{children}</main>
+    </div>
+  );
+}
