@@ -5,11 +5,23 @@ import { buildApifyInput } from '@/lib/search-payload';
 
 type StartOrder = {
   id: string;
+  order_code: string;
   user_id: string;
   status: string;
   requested_count: number | null;
-  packages: { lead_count: number } | { lead_count: number }[] | null;
+  packages: { name: string; lead_count: number; price_usd: number } | { name: string; lead_count: number; price_usd: number }[] | null;
 };
+
+async function readWorkflowResponse(response: Response) {
+  const text = await response.text();
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return { raw: text };
+  }
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -27,7 +39,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const admin = createAdminClient();
   const { data: order, error: orderError } = await admin
     .from('orders')
-    .select('id,user_id,status,requested_count,packages(lead_count)')
+    .select('id,order_code,user_id,status,requested_count,packages(name,lead_count,price_usd)')
     .eq('id', id)
     .single<StartOrder>();
 
@@ -66,12 +78,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     cache: 'no-store',
   });
 
-  let workflowData: Record<string, unknown> = {};
-  try {
-    workflowData = await workflowResponse.json();
-  } catch {
-    workflowData = {};
-  }
+  const workflowData = await readWorkflowResponse(workflowResponse);
 
   if (!workflowResponse.ok || workflowData.ok === false) {
     const message = typeof workflowData.error === 'string'

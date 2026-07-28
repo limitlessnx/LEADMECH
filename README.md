@@ -1,13 +1,14 @@
 # Leadmech
 
-Leadmech is a mobile-first Next.js lead-search SaaS for selling fixed lead packages, taking crypto payments, running an Apify actor, and delivering cleaned CSV/XLSX files through Supabase Storage and Resend email.
+Leadmech is a mobile-first Next.js lead-search SaaS for selling fixed lead packages, taking crypto payments, handing paid searches to n8n, running an Apify actor, and delivering cleaned CSV/XLSX files through Supabase Storage and Resend email.
 
 ## Production stack
 
 - Next.js on Vercel
 - Supabase Auth, Postgres, and private Storage
 - NOWPayments crypto checkout and IPN webhook
-- Apify actor runs with completion webhook
+- n8n orchestration for paid search runs
+- Apify actor runs through n8n
 - Resend transactional emails
 - Optional n8n workflow drafts in `/n8n`
 
@@ -30,7 +31,7 @@ Leadmech is a mobile-first Next.js lead-search SaaS for selling fixed lead packa
 
 - `POST /api/payments/nowpayments/create`
 - `POST /api/webhooks/nowpayments`
-- `POST /api/orders/:id/start`
+- `POST /api/orders/:id/start` - verifies the paid order, then sends it to the n8n start-search webhook
 - `POST /api/webhooks/apify`
 - `GET /api/orders/:id/download?format=csv|xlsx`
 
@@ -52,6 +53,8 @@ Required before full production testing:
 - `APIFY_WEBHOOK_SECRET`
 - `RESEND_API_KEY`
 - `RESEND_FROM_EMAIL`
+- `N8N_START_SEARCH_WEBHOOK_URL`
+- `LEADMECH_WEBHOOK_SECRET`
 
 ## Run locally
 
