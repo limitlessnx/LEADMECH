@@ -19,9 +19,9 @@ The Vercel app now exposes these production routes:
 - NOWPayments IPN: `https://leadmech.vercel.app/api/webhooks/nowpayments`
 - Apify completion webhook: `https://leadmech.vercel.app/api/webhooks/apify?secret=<APIFY_WEBHOOK_SECRET>`
 - Start search from website: `https://leadmech.vercel.app/api/orders/:orderId/start`
-- n8n start-search webhook: set this as `N8N_START_SEARCH_WEBHOOK_URL` in Vercel
+- n8n start-search webhook: set the full production URL, including `?secret=...`, as `N8N_START_SEARCH_WEBHOOK_URL` in Vercel
 
-Use the website start endpoint for the customer flow. It forwards a signed payload to n8n with the `x-leadmech-secret` header.
+Use the website start endpoint for the customer flow. It forwards the paid order to n8n using the private webhook URL secret.
 
 ## Required credentials
 
