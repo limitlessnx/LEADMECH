@@ -66,6 +66,20 @@ export function AuthForm() {
       <button
         type="button"
         className="link-button"
+        style={{
+          appearance: 'none',
+          background: 'transparent',
+          border: 0,
+          color: 'var(--accent)',
+          cursor: 'pointer',
+          display: 'block',
+          fontWeight: 800,
+          lineHeight: 1.35,
+          marginTop: 18,
+          padding: '12px 8px',
+          textAlign: 'center',
+          width: '100%',
+        }}
         onClick={() => {
           setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in');
           setMessage('');
