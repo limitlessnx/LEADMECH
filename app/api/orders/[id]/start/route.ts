@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabase } from '@/lib/supabase/server';
 import { buildApifyInput } from '@/lib/search-payload';
+import { getSiteUrl } from '@/lib/site';
 
 type StartOrder = {
   id: string;
@@ -11,17 +12,6 @@ type StartOrder = {
   requested_count: number | null;
   packages: { name: string; lead_count: number; price_usd: number } | { name: string; lead_count: number; price_usd: number }[] | null;
 };
-
-async function readWorkflowResponse(response: Response) {
-  const text = await response.text();
-  if (!text) return {};
-
-  try {
-    return JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    return { raw: text };
-  }
-}
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -50,38 +40,67 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'This order is not ready for search.' }, { status: 409 });
   }
 
-  const webhookUrl = process.env.N8N_START_SEARCH_WEBHOOK_URL;
-  if (!webhookUrl) {
-    return NextResponse.json({
-      error: 'The Leadmech workflow is not configured. Add N8N_START_SEARCH_WEBHOOK_URL in Vercel.',
-    }, { status: 503 });
+  const actorId = process.env.APIFY_ACTOR_ID;
+  const token = process.env.APIFY_API_TOKEN;
+  if (!actorId || !token) {
+    return NextResponse.json({ error: 'Apify is not configured yet.' }, { status: 503 });
   }
 
-  const actorInput = buildApifyInput(search ?? {});
   const packageInfo = Array.isArray(order.packages) ? order.packages[0] : order.packages;
   const leadCount = order.requested_count ?? packageInfo?.lead_count ?? 0;
+  const actorInput = { count: leadCount, ...buildApifyInput(search ?? {}) };
+  const siteUrl = getSiteUrl();
+  const webhookSecret = process.env.APIFY_WEBHOOK_SECRET;
+  const completionWebhookUrl = `${siteUrl}/api/webhooks/apify${webhookSecret ? `?secret=${encodeURIComponent(webhookSecret)}` : ''}`;
+  const webhooks = Buffer.from(JSON.stringify([{
+    eventTypes: [
+      'ACTOR.RUN.SUCCEEDED',
+      'ACTOR.RUN.FAILED',
+      'ACTOR.RUN.TIMED_OUT',
+      'ACTOR.RUN.ABORTED',
+    ],
+    requestUrl: completionWebhookUrl,
+    payloadTemplate: JSON.stringify({
+      orderId: id,
+      eventType: '{{eventType}}',
+      resource: '{{resource}}',
+    }).replace('"{{resource}}"', '{{resource}}'),
+    shouldInterpolateStrings: true,
+  }])).toString('base64');
 
-  const workflowResponse = await fetch(webhookUrl, {
+  await admin
+    .from('orders')
+    .update({
+      status: 'processing',
+      requested_count: leadCount,
+      delivery_email: deliveryEmail,
+      search_filters: search ?? {},
+      apify_input: actorInput,
+      started_at: new Date().toISOString(),
+      error_message: null,
+    })
+    .eq('id', id);
+
+  const apifyResponse = await fetch(`https://api.apify.com/v2/actors/${actorId}/runs?waitForFinish=0&webhooks=${encodeURIComponent(webhooks)}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
+      authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({
-      orderId: id,
-      leadCount,
-      email: deliveryEmail,
-      confirmEmail,
-      ...actorInput,
-    }),
+    body: JSON.stringify(actorInput),
     cache: 'no-store',
   });
 
-  const workflowData = await readWorkflowResponse(workflowResponse);
+  const apifyData = await apifyResponse.json().catch(() => ({}));
 
-  if (!workflowResponse.ok || workflowData.ok === false) {
-    const message = typeof workflowData.error === 'string'
-      ? workflowData.error
-      : 'Unable to start the Leadmech workflow.';
+  if (!apifyResponse.ok || !apifyData?.data?.id) {
+    const message = typeof apifyData?.error?.message === 'string'
+      ? apifyData.error.message
+      : typeof apifyData?.message === 'string'
+      ? apifyData.message
+      : typeof apifyData?.error === 'string'
+      ? apifyData.error
+      : 'Unable to start the Apify lead search.';
 
     await admin
       .from('orders')
@@ -91,9 +110,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
+  await admin
+    .from('orders')
+    .update({
+      status: 'processing',
+      apify_run_id: apifyData.data.id,
+      apify_dataset_id: apifyData.data.defaultDatasetId ?? null,
+    })
+    .eq('id', id);
+
   return NextResponse.json({
     ok: true,
-    status: workflowData.status ?? 'processing',
-    runId: workflowData.runId ?? null,
+    status: apifyData.data.status ?? 'processing',
+    runId: apifyData.data.id,
   });
 }
