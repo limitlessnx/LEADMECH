@@ -153,7 +153,16 @@ export default function Home() {
           </div>
         </section>
       </main>
-      <footer className="footer"><div className="container">Copyright 2026 Leadmech. Verified lead search with clean CSV and Excel delivery.</div></footer>
+      <footer className="footer">
+        <div className="container footer-inner">
+          <span>© 2026 Leadmech. Verified lead search with clean CSV and Excel delivery.</span>
+          <div>
+            <Link href="/terms">Terms</Link>
+            <Link href="/privacy">Privacy</Link>
+            <a href="mailto:support@leadmech.xyz">support@leadmech.xyz</a>
+          </div>
+        </div>
+      </footer>
     </>
   );
 }
