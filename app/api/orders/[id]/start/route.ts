@@ -51,10 +51,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const webhookUrl = process.env.N8N_START_SEARCH_WEBHOOK_URL;
-  const webhookSecret = process.env.LEADMECH_WEBHOOK_SECRET;
-  if (!webhookUrl || !webhookSecret) {
+  if (!webhookUrl) {
     return NextResponse.json({
-      error: 'The Leadmech workflow is not configured. Add N8N_START_SEARCH_WEBHOOK_URL and LEADMECH_WEBHOOK_SECRET in Vercel.',
+      error: 'The Leadmech workflow is not configured. Add N8N_START_SEARCH_WEBHOOK_URL in Vercel.',
     }, { status: 503 });
   }
 
@@ -66,7 +65,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-leadmech-secret': webhookSecret,
     },
     body: JSON.stringify({
       orderId: id,
