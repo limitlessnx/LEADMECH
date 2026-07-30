@@ -31,7 +31,7 @@ Leadmech is a mobile-first Next.js lead-search SaaS for selling fixed lead packa
 
 - `POST /api/payments/nowpayments/create`
 - `POST /api/webhooks/nowpayments`
-- `POST /api/orders/:id/start` - verifies the paid order, then sends it to the n8n start-search webhook
+- `POST /api/orders/:id/start` - verifies the paid order, then sends it to the n8n start-search webhook URL
 - `POST /api/webhooks/apify`
 - `GET /api/orders/:id/download?format=csv|xlsx`
 
@@ -53,8 +53,7 @@ Required before full production testing:
 - `APIFY_WEBHOOK_SECRET`
 - `RESEND_API_KEY`
 - `RESEND_FROM_EMAIL`
-- `N8N_START_SEARCH_WEBHOOK_URL`
-- `LEADMECH_WEBHOOK_SECRET`
+- `N8N_START_SEARCH_WEBHOOK_URL` with the private `?secret=...` query string included
 
 ## Run locally
 
