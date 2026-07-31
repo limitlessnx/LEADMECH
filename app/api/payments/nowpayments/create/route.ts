@@ -4,13 +4,16 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { getSiteUrl, requireEnv } from '@/lib/site';
 import { getPackage } from '@/lib/packages';
 
+const TEST_COUPON_CODE = 'LEADMECH100';
+
 export async function POST(request: Request) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) return NextResponse.json({ error: 'Please sign in before checkout.' }, { status: 401 });
 
-  const { packageId } = await request.json();
+  const { packageId, couponCode } = await request.json();
   const selectedPackage = getPackage(packageId);
+  const normalizedCoupon = String(couponCode || '').trim().toUpperCase();
   const admin = createAdminClient();
   const { data: packageRow, error: packageError } = await admin
     .from('packages')
@@ -21,6 +24,25 @@ export async function POST(request: Request) {
 
   if (packageError || !packageRow) return NextResponse.json({ error: 'Package is not available.' }, { status: 400 });
 
+  if (normalizedCoupon && normalizedCoupon !== TEST_COUPON_CODE) {
+    return NextResponse.json({ error: 'Invalid coupon code.' }, { status: 400 });
+  }
+
+  if (normalizedCoupon === TEST_COUPON_CODE) {
+    const { data: previousCouponOrder } = await admin
+      .from('orders')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('payment_status', 'coupon_LEADMECH100')
+      .limit(1)
+      .maybeSingle();
+
+    if (previousCouponOrder) {
+      return NextResponse.json({ error: 'This test coupon has already been used on your account.' }, { status: 409 });
+    }
+  }
+
+  const isTestCoupon = normalizedCoupon === TEST_COUPON_CODE;
   const { data: order, error: orderError } = await admin
     .from('orders')
     .insert({
@@ -28,12 +50,25 @@ export async function POST(request: Request) {
       package_id: packageRow.id,
       requested_count: packageRow.lead_count,
       delivery_email: user.email,
-      status: 'awaiting_payment',
+      status: isTestCoupon ? 'ready_for_search' : 'awaiting_payment',
+      payment_status: isTestCoupon ? 'coupon_LEADMECH100' : null,
+      paid_at: isTestCoupon ? new Date().toISOString() : null,
     })
     .select('id,order_code')
     .single();
 
   if (orderError || !order) return NextResponse.json({ error: 'Unable to create order.' }, { status: 500 });
+
+  const siteUrl = getSiteUrl();
+
+  if (isTestCoupon) {
+    return NextResponse.json({
+      orderId: order.id,
+      orderCode: order.order_code,
+      couponApplied: true,
+      successUrl: `${siteUrl}/search?order=${order.id}`,
+    });
+  }
 
   let apiKey: string;
   try {
@@ -42,7 +77,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'NOWPayments is not configured yet. Add NOWPAYMENTS_API_KEY in Vercel.' }, { status: 503 });
   }
 
-  const siteUrl = getSiteUrl();
   const paymentResponse = await fetch('https://api.nowpayments.io/v1/invoice', {
     method: 'POST',
     headers: {
