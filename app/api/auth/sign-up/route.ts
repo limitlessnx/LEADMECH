@@ -1,6 +1,9 @@
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { createServerSupabase } from '@/lib/supabase/server';
+import { requireEnv } from '@/lib/site';
+
+type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -69,10 +72,41 @@ export async function POST(request: Request) {
     );
   }
 
-  const supabase = await createServerSupabase();
+  const response = isFormPost
+    ? NextResponse.redirect(new URL(next, request.url), 303)
+    : NextResponse.json({ created: true, redirectTo: next });
+
+  const requestCookieHeader = request.headers.get('cookie') || '';
+  const requestCookies = requestCookieHeader
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const separator = part.indexOf('=');
+      return separator === -1
+        ? { name: part, value: '' }
+        : { name: part.slice(0, separator), value: decodeURIComponent(part.slice(separator + 1)) };
+    });
+
+  const supabase = createServerClient(
+    requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
+    requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+    {
+      cookies: {
+        getAll() {
+          return requestCookies;
+        },
+        setAll(cookiesToSet: CookieToSet[]) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    },
+  );
+
   const signInResult = await supabase.auth.signInWithPassword({ email, password });
   if (signInResult.error) return respondError(signInResult.error.message, 400);
 
-  if (isFormPost) return NextResponse.redirect(new URL(next, request.url), 303);
-  return NextResponse.json({ created: true, redirectTo: next });
+  return response;
 }
