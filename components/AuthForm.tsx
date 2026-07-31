@@ -9,36 +9,26 @@ type Mode = 'sign-in' | 'sign-up';
 export function AuthForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const [mode, setMode] = useState<Mode>('sign-in');
+  const initialMode: Mode = params.get('mode') === 'sign-up' ? 'sign-up' : 'sign-in';
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState(params.get('error') || '');
   const [loading, setLoading] = useState(false);
 
   const next = params.get('next') || '/dashboard';
 
-  const submit = async (event: FormEvent) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    if (mode === 'sign-up') {
+      setLoading(true);
+      return;
+    }
+
     event.preventDefault();
     setLoading(true);
     setMessage('');
 
     const supabase = createBrowserSupabase();
-
-    if (mode === 'sign-up') {
-      const signupResponse = await fetch('/api/auth/sign-up', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const signupData = await signupResponse.json();
-
-      if (!signupResponse.ok) {
-        setLoading(false);
-        setMessage(signupData.error || 'Unable to create account.');
-        return;
-      }
-    }
-
     const result = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
 
@@ -52,16 +42,23 @@ export function AuthForm() {
   };
 
   return (
-    <form onSubmit={submit} className="card" style={{ marginTop: 28 }}>
+    <form
+      onSubmit={submit}
+      action={mode === 'sign-up' ? '/api/auth/sign-up' : undefined}
+      method={mode === 'sign-up' ? 'post' : undefined}
+      className="card"
+      style={{ marginTop: 28 }}
+    >
       <h1>{mode === 'sign-in' ? 'Welcome back' : 'Create account'}</h1>
       <p className="muted">Sign in to purchase searches and access saved files.</p>
+      {mode === 'sign-up' && <input type="hidden" name="next" value={next} />}
       <div className="field">
         <label>Email</label>
-        <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" autoComplete="email" />
+        <input required name="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" autoComplete="email" />
       </div>
       <div className="field" style={{ marginTop: 14 }}>
         <label>Password</label>
-        <input required minLength={6} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} />
+        <input required name="password" minLength={6} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} />
       </div>
       {message && <p className="error-text">{message}</p>}
       <button className="btn btn-primary" style={{ width: '100%', marginTop: 20 }} disabled={loading}>
@@ -87,6 +84,7 @@ export function AuthForm() {
         onClick={() => {
           setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in');
           setMessage('');
+          setLoading(false);
         }}
       >
         {mode === 'sign-in' ? 'New here? Create an account.' : 'Already have an account? Sign in.'}
