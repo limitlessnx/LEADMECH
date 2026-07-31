@@ -9,6 +9,7 @@ export function PackageCheckout() {
   const selectedPackage = getPackage(params.get('package'));
   const [singleSearchAccepted, setSingleSearchAccepted] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const ready = singleSearchAccepted && termsAccepted;
@@ -21,7 +22,7 @@ export function PackageCheckout() {
     const response = await fetch('/api/payments/nowpayments/create', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ packageId: selectedPackage.id }),
+      body: JSON.stringify({ packageId: selectedPackage.id, couponCode }),
     });
     const data = await response.json();
     setLoading(false);
@@ -33,6 +34,11 @@ export function PackageCheckout() {
 
     if (!response.ok) {
       setError(data.error || 'Unable to start checkout.');
+      return;
+    }
+
+    if (data.couponApplied && data.successUrl) {
+      window.location.href = data.successUrl;
       return;
     }
 
@@ -54,11 +60,21 @@ export function PackageCheckout() {
           <span>OK Permanent dashboard access</span>
           <span>OK Completion email with download links</span>
         </div>
+        <label className="form-field">
+          <span>Coupon code</span>
+          <input
+            type="text"
+            value={couponCode}
+            onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+            placeholder="Enter coupon code"
+            autoComplete="off"
+          />
+        </label>
         <label className="check-line"><input type="checkbox" checked={singleSearchAccepted} onChange={(event) => setSingleSearchAccepted(event.target.checked)} /> <span>I understand this purchase includes one search only.</span></label>
         <label className="check-line"><input type="checkbox" checked={termsAccepted} onChange={(event) => setTermsAccepted(event.target.checked)} /> <span>I agree to the Terms and Privacy Policy.</span></label>
         {error && <p className="error-text">{error}</p>}
         {ready ? (
-          <button onClick={continueToPayment} className="btn btn-primary btn-wide" disabled={loading}>{loading ? 'Creating checkout...' : 'Continue to crypto payment'}</button>
+          <button onClick={continueToPayment} className="btn btn-primary btn-wide" disabled={loading}>{loading ? 'Creating checkout...' : couponCode.trim() ? 'Apply coupon and continue' : 'Continue to crypto payment'}</button>
         ) : (
           <button className="btn btn-primary btn-wide" disabled>Accept both items to continue</button>
         )}
@@ -67,7 +83,7 @@ export function PackageCheckout() {
         <span className="pill">Secure checkout</span>
         <h2>What happens next?</h2>
         <ol className="numbered-list">
-          <li><span>1</span><div><strong>Pay in crypto</strong><p className="muted">NOWPayments confirms the transaction.</p></div></li>
+          <li><span>1</span><div><strong>Pay in crypto</strong><p className="muted">NOWPayments confirms the transaction, unless a valid test coupon covers the order.</p></div></li>
           <li><span>2</span><div><strong>Configure your search</strong><p className="muted">Choose any filters that matter to you.</p></div></li>
           <li><span>3</span><div><strong>Receive cleaned files</strong><p className="muted">CSV and Excel remain in your dashboard.</p></div></li>
         </ol>
