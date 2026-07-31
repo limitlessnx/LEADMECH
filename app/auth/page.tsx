@@ -2,6 +2,9 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { AuthForm } from '@/components/AuthForm';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default function Auth() {
   return (
     <main className="container" style={{ maxWidth: 520, padding: '70px 0' }}>
