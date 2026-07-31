@@ -23,23 +23,27 @@ export function AuthForm() {
     setMessage('');
 
     const supabase = createBrowserSupabase();
-    const result = mode === 'sign-in'
-      ? await supabase.auth.signInWithPassword({ email, password })
-      : await supabase.auth.signUp({
-          email,
-          password,
-          options: { emailRedirectTo: `${window.location.origin}${next}` },
-        });
 
+    if (mode === 'sign-up') {
+      const signupResponse = await fetch('/api/auth/sign-up', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const signupData = await signupResponse.json();
+
+      if (!signupResponse.ok) {
+        setLoading(false);
+        setMessage(signupData.error || 'Unable to create account.');
+        return;
+      }
+    }
+
+    const result = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
 
     if (result.error) {
       setMessage(result.error.message);
-      return;
-    }
-
-    if (mode === 'sign-up' && !result.data.session) {
-      setMessage('Check your email to confirm your account, then sign in.');
       return;
     }
 
@@ -53,13 +57,13 @@ export function AuthForm() {
       <p className="muted">Sign in to purchase searches and access saved files.</p>
       <div className="field">
         <label>Email</label>
-        <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" />
+        <input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" autoComplete="email" />
       </div>
       <div className="field" style={{ marginTop: 14 }}>
         <label>Password</label>
-        <input required minLength={6} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" />
+        <input required minLength={6} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} />
       </div>
-      {message && <p className={message.includes('Check your email') ? 'muted' : 'error-text'}>{message}</p>}
+      {message && <p className="error-text">{message}</p>}
       <button className="btn btn-primary" style={{ width: '100%', marginTop: 20 }} disabled={loading}>
         {loading ? 'Please wait...' : mode === 'sign-in' ? 'Sign in' : 'Create account'}
       </button>
