@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createServerSupabase } from '@/lib/supabase/server';
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function safeNext(value: string) {
+  return value.startsWith('/') && !value.startsWith('//') ? value : '/dashboard';
 }
 
 export async function POST(request: Request) {
@@ -16,20 +21,41 @@ export async function POST(request: Request) {
     }
   }
 
-  const body = await request.json().catch(() => null);
-  const email = String(body?.email ?? '').trim().toLowerCase();
-  const password = String(body?.password ?? '');
+  const contentType = request.headers.get('content-type') || '';
+  let email = '';
+  let password = '';
+  let next = '/dashboard';
+  let isFormPost = false;
 
-  if (!isValidEmail(email)) {
-    return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 });
+  if (contentType.includes('application/x-www-form-urlencoded') || contentType.includes('multipart/form-data')) {
+    isFormPost = true;
+    const form = await request.formData();
+    email = String(form.get('email') ?? '').trim().toLowerCase();
+    password = String(form.get('password') ?? '');
+    next = safeNext(String(form.get('next') ?? '/dashboard'));
+  } else {
+    const body = await request.json().catch(() => null);
+    email = String(body?.email ?? '').trim().toLowerCase();
+    password = String(body?.password ?? '');
+    next = safeNext(String(body?.next ?? '/dashboard'));
   }
 
-  if (password.length < 6) {
-    return NextResponse.json({ error: 'Password must contain at least 6 characters.' }, { status: 400 });
-  }
+  const respondError = (message: string, status: number) => {
+    if (isFormPost) {
+      const url = new URL('/auth', request.url);
+      url.searchParams.set('mode', 'sign-up');
+      url.searchParams.set('error', message);
+      url.searchParams.set('next', next);
+      return NextResponse.redirect(url, 303);
+    }
+    return NextResponse.json({ error: message }, { status });
+  };
+
+  if (!isValidEmail(email)) return respondError('Enter a valid email address.', 400);
+  if (password.length < 6) return respondError('Password must contain at least 6 characters.', 400);
 
   const admin = createAdminClient();
-  const { data, error } = await admin.auth.admin.createUser({
+  const { error } = await admin.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
@@ -37,11 +63,16 @@ export async function POST(request: Request) {
 
   if (error) {
     const duplicate = /already.*registered|already.*exists|email.*exists/i.test(error.message);
-    return NextResponse.json(
-      { error: duplicate ? 'An account already exists with this email. Sign in instead.' : error.message },
-      { status: duplicate ? 409 : 400 },
+    return respondError(
+      duplicate ? 'An account already exists with this email. Sign in instead.' : error.message,
+      duplicate ? 409 : 400,
     );
   }
 
-  return NextResponse.json({ created: true, userId: data.user.id });
+  const supabase = await createServerSupabase();
+  const signInResult = await supabase.auth.signInWithPassword({ email, password });
+  if (signInResult.error) return respondError(signInResult.error.message, 400);
+
+  if (isFormPost) return NextResponse.redirect(new URL(next, request.url), 303);
+  return NextResponse.json({ created: true, redirectTo: next });
 }
