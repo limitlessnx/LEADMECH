@@ -5,6 +5,7 @@ export type SearchForm = {
   companySizes?: string[];
   personCountries?: string[] | string;
   personStates?: string[] | string;
+  personCities?: string[] | string;
   personTitles?: string[] | string;
   jobTitles?: string[] | string;
   seniority?: string[];
@@ -25,19 +26,35 @@ export function buildApifyInput(form: SearchForm) {
     countOnly: false,
     dontSaveProgress: false,
     resetProgress: false,
-    includeTitleVariants: false
+    includeTitleVariants: false,
   };
-  const add=(key:string,value?:string[] | string)=>{const items=toArray(value);if(items.length) payload[key]=items};
-  add('companyIndustryIncludes',form.companyIndustries);
-  add('companyLocationCityIncludes',form.companyCities);
-  add('companyLocationCountryIncludes',form.companyCountries);
-  add('companySizeIncludes',form.companySizes);
-  add('personLocationCountryIncludes',form.personCountries);
-  add('personLocationStateIncludes',form.personStates);
-  add('personTitleIncludes',form.personTitles ?? form.jobTitles);
-  add('seniorityIncludes',form.seniority);
-  payload.hasEmail=form.hasEmail ? form.hasEmail !== 'not-required' : form.requireVerifiedEmail ?? true;
-  payload.hasPhone=form.hasPhone ? form.hasPhone === 'required' : form.requirePhone ?? false;
-  if(form.hasEmail ? form.hasEmail === 'verified' : form.requireVerifiedEmail ?? true){payload.emailStatusIncludes=['verified'];payload.emailStatusExcludes=['unverified'];}
+
+  const add = (key: string, value?: string[] | string) => {
+    const items = toArray(value);
+    if (items.length) payload[key] = items;
+  };
+
+  add('companyIndustryIncludes', form.companyIndustries);
+  add('companyLocationCityIncludes', form.companyCities);
+  add('companyLocationCountryIncludes', form.companyCountries);
+  add('companySizeIncludes', form.companySizes);
+  add('personLocationCountryIncludes', form.personCountries);
+  add('personLocationStateIncludes', form.personStates);
+  add('personLocationCityIncludes', form.personCities);
+  add('personTitleIncludes', form.personTitles ?? form.jobTitles);
+  add('seniorityIncludes', form.seniority);
+
+  payload.hasEmail = form.hasEmail
+    ? form.hasEmail !== 'not-required'
+    : form.requireVerifiedEmail ?? true;
+  payload.hasPhone = form.hasPhone
+    ? form.hasPhone === 'required'
+    : form.requirePhone ?? false;
+
+  if (form.hasEmail ? form.hasEmail === 'verified' : form.requireVerifiedEmail ?? true) {
+    payload.emailStatusIncludes = ['verified'];
+    payload.emailStatusExcludes = ['unverified'];
+  }
+
   return payload;
 }
