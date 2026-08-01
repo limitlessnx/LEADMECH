@@ -1,6 +1,7 @@
 export type SearchForm = {
   companyIndustries?: string[] | string;
   companyCities?: string[] | string;
+  companyStates?: string[] | string;
   companyCountries?: string[] | string;
   companySizes?: string[];
   personCountries?: string[] | string;
@@ -9,16 +10,23 @@ export type SearchForm = {
   personTitles?: string[] | string;
   jobTitles?: string[] | string;
   seniority?: string[];
+  emailStatus?: 'verified' | 'unverified' | 'any';
   requireVerifiedEmail?: boolean;
   requirePhone?: boolean;
-  hasEmail?: string;
-  hasPhone?: string;
+  hasEmail?: string | boolean;
+  hasPhone?: string | boolean;
+  totalResults?: number;
 };
 
 function toArray(value?: string[] | string) {
   if (Array.isArray(value)) return value.map((item) => item.trim()).filter(Boolean);
   if (!value) return [];
   return value.split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function isRequired(value?: string | boolean) {
+  if (typeof value === 'boolean') return value;
+  return value === 'required' || value === 'verified' || value === 'any';
 }
 
 export function buildApifyInput(form: SearchForm) {
@@ -35,8 +43,9 @@ export function buildApifyInput(form: SearchForm) {
   };
 
   add('companyIndustryIncludes', form.companyIndustries);
-  add('companyLocationCityIncludes', form.companyCities);
   add('companyLocationCountryIncludes', form.companyCountries);
+  add('companyLocationStateIncludes', form.companyStates);
+  add('companyLocationCityIncludes', form.companyCities);
   add('companySizeIncludes', form.companySizes);
   add('personLocationCountryIncludes', form.personCountries);
   add('personLocationStateIncludes', form.personStates);
@@ -44,16 +53,29 @@ export function buildApifyInput(form: SearchForm) {
   add('personTitleIncludes', form.personTitles ?? form.jobTitles);
   add('seniorityIncludes', form.seniority);
 
-  payload.hasEmail = form.hasEmail
-    ? form.hasEmail !== 'not-required'
+  const hasEmail = form.hasEmail !== undefined
+    ? isRequired(form.hasEmail)
     : form.requireVerifiedEmail ?? true;
-  payload.hasPhone = form.hasPhone
-    ? form.hasPhone === 'required'
+  const hasPhone = form.hasPhone !== undefined
+    ? isRequired(form.hasPhone)
     : form.requirePhone ?? false;
 
-  if (form.hasEmail ? form.hasEmail === 'verified' : form.requireVerifiedEmail ?? true) {
-    payload.emailStatusIncludes = ['verified'];
-    payload.emailStatusExcludes = ['unverified'];
+  payload.hasEmail = hasEmail;
+  payload.hasPhone = hasPhone;
+
+  if (hasEmail) {
+    const emailStatus = form.emailStatus || (form.requireVerifiedEmail === false ? 'any' : 'verified');
+    if (emailStatus === 'verified') {
+      payload.emailStatusIncludes = ['verified'];
+      payload.emailStatusExcludes = ['unverified'];
+    } else if (emailStatus === 'unverified') {
+      payload.emailStatusIncludes = ['unverified'];
+      payload.emailStatusExcludes = ['verified'];
+    }
+  }
+
+  if (form.totalResults && Number.isFinite(Number(form.totalResults))) {
+    payload.totalResults = Math.min(Math.max(Math.round(Number(form.totalResults)), 1), 50000);
   }
 
   return payload;
