@@ -17,6 +17,7 @@ export function AuthForm() {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [message, setMessage] = useState(params.get('error') || '');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -25,6 +26,13 @@ export function AuthForm() {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     if (mode === 'sign-up') {
+      if (password !== confirmPassword) {
+        event.preventDefault();
+        setMessage('Passwords do not match. Enter the same password twice.');
+        setSuccess(false);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       return;
     }
@@ -66,7 +74,9 @@ export function AuthForm() {
   const title = mode === 'sign-in' ? 'Welcome back' : mode === 'sign-up' ? 'Create account' : 'Reset your password';
   const description = mode === 'forgot-password'
     ? 'Enter your email and we will send you a secure password reset link.'
-    : 'Sign in to purchase searches and access saved files.';
+    : mode === 'sign-up'
+      ? 'Enter your password twice so you can confirm it before your account is created.'
+      : 'Sign in to purchase searches and access saved files.';
 
   return (
     <form
@@ -89,6 +99,12 @@ export function AuthForm() {
           <input required name="password" minLength={6} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} />
         </div>
       )}
+      {mode === 'sign-up' && (
+        <div className="field" style={{ marginTop: 14 }}>
+          <label>Confirm password</label>
+          <input required name="confirmPassword" minLength={6} type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} placeholder="Enter the same password again" autoComplete="new-password" />
+        </div>
+      )}
       {message && <p className={success ? 'muted' : 'error-text'}>{message}</p>}
       <button className="btn btn-primary" style={{ width: '100%', marginTop: 20 }} disabled={loading}>
         {loading ? 'Please wait...' : mode === 'sign-in' ? 'Sign in' : mode === 'sign-up' ? 'Create account' : 'Send reset link'}
@@ -98,6 +114,7 @@ export function AuthForm() {
         <button
           type="button"
           className="link-button"
+          data-no-global-loading="true"
           style={{ appearance: 'none', background: 'transparent', border: 0, color: 'var(--accent)', cursor: 'pointer', display: 'block', fontWeight: 700, marginTop: 14, padding: '8px', textAlign: 'center', width: '100%' }}
           onClick={() => { setMode('forgot-password'); setMessage(''); setSuccess(false); }}
         >
@@ -108,12 +125,15 @@ export function AuthForm() {
       <button
         type="button"
         className="link-button"
+        data-no-global-loading="true"
         style={{ appearance: 'none', background: 'transparent', border: 0, color: 'var(--accent)', cursor: 'pointer', display: 'block', fontWeight: 800, lineHeight: 1.35, marginTop: 10, padding: '12px 8px', textAlign: 'center', width: '100%' }}
         onClick={() => {
           setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in');
           setMessage('');
           setSuccess(false);
           setLoading(false);
+          setPassword('');
+          setConfirmPassword('');
         }}
       >
         {mode === 'sign-in' ? 'New here? Create an account.' : 'Back to sign in.'}
