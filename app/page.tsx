@@ -3,6 +3,7 @@ import { Nav } from '@/components/Nav';
 import { packages } from '@/lib/packages';
 
 const packageFit: Record<string, string> = {
+  test: 'Use this to test payment, search, delivery, and dashboard access end to end.',
   starter: 'Best for testing a focused outreach campaign.',
   growth: 'Best for growing teams running regular prospecting.',
   pro: 'Best for agencies and repeat high-volume outreach.',
@@ -74,7 +75,7 @@ export default function Home() {
           <h2 className="section-title">A clear paid search workflow.</h2>
           <p className="muted">Customers always know what happens before and after payment.</p>
           <div className="process-grid">
-            <div className="process-step"><span>01</span><strong>Choose package</strong><p className="muted">Select 5,000, 10,000, 25,000, or 50,000 lead rows.</p></div>
+            <div className="process-step"><span>01</span><strong>Choose package</strong><p className="muted">Start with the 100-lead test purchase or select 5,000, 10,000, 25,000, or 50,000 leads.</p></div>
             <div className="process-step"><span>02</span><strong>Pay with crypto</strong><p className="muted">NOWPayments confirms the transaction before search access opens.</p></div>
             <div className="process-step"><span>03</span><strong>Build search</strong><p className="muted">Use any combination of industry, title, company, and location filters.</p></div>
             <div className="process-step"><span>04</span><strong>Receive files</strong><p className="muted">Download CSV and Excel from the dashboard and receive the completion email.</p></div>
@@ -86,7 +87,7 @@ export default function Home() {
             <div className="mock-top"><strong>Customer dashboard</strong><span className="pill">Completed</span></div>
             <div className="dashboard-list">
               <div className="dashboard-row"><span>LM-1028</span><strong>25,000 leads</strong><span className="status completed">Completed</span><span>CSV</span><span>Excel</span></div>
-              <div className="dashboard-row"><span>LM-1029</span><strong>5,000 leads</strong><span className="status processing">Processing</span><span>-</span><span>-</span></div>
+              <div className="dashboard-row"><span>LM-1029</span><strong>100 leads</strong><span className="status processing">Processing</span><span>-</span><span>-</span></div>
               <div className="dashboard-row"><span>LM-1030</span><strong>50,000 leads</strong><span className="status completed">Completed</span><span>CSV</span><span>Excel</span></div>
             </div>
           </div>
