@@ -32,7 +32,7 @@ export function GlobalActionLoader() {
 
     const show = () => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => setVisible(true), 100);
+      timer = setTimeout(() => setVisible(true), 80);
       safetyTimer = setTimeout(hide, 20000);
     };
 
@@ -61,14 +61,11 @@ export function GlobalActionLoader() {
       show();
     };
 
-    const handleFailure = () => hide();
-
     document.addEventListener('click', handleClick, true);
     document.addEventListener('submit', handleSubmit, true);
     window.addEventListener('pageshow', hide);
-    window.addEventListener('online', handleFailure);
-    window.addEventListener('unhandledrejection', handleFailure);
-    window.addEventListener('error', handleFailure);
+    window.addEventListener('unhandledrejection', hide);
+    window.addEventListener('error', hide);
 
     return () => {
       if (timer) clearTimeout(timer);
@@ -76,22 +73,18 @@ export function GlobalActionLoader() {
       document.removeEventListener('click', handleClick, true);
       document.removeEventListener('submit', handleSubmit, true);
       window.removeEventListener('pageshow', hide);
-      window.removeEventListener('online', handleFailure);
-      window.removeEventListener('unhandledrejection', handleFailure);
-      window.removeEventListener('error', handleFailure);
+      window.removeEventListener('unhandledrejection', hide);
+      window.removeEventListener('error', hide);
     };
   }, []);
 
   if (!visible) return null;
 
   return (
-    <div className="global-action-loader" role="status" aria-live="assertive" aria-label="Action in progress">
-      <div className="global-action-loader-card">
-        <div className="global-action-spinner" aria-hidden="true" />
-        <strong>Action in progress</strong>
-        <span>Please wait. Do not click again or close this page.</span>
-        <div className="global-action-progress" aria-hidden="true"><i /></div>
-      </div>
+    <div className="top-action-loader" role="status" aria-live="polite" aria-label="Loading">
+      <span />
+      <span />
+      <span />
     </div>
   );
 }
