@@ -27,6 +27,7 @@ export async function POST(request: Request) {
   const contentType = request.headers.get('content-type') || '';
   let email = '';
   let password = '';
+  let confirmPassword = '';
   let next = '/dashboard';
   let isFormPost = false;
 
@@ -35,11 +36,13 @@ export async function POST(request: Request) {
     const form = await request.formData();
     email = String(form.get('email') ?? '').trim().toLowerCase();
     password = String(form.get('password') ?? '');
+    confirmPassword = String(form.get('confirmPassword') ?? '');
     next = safeNext(String(form.get('next') ?? '/dashboard'));
   } else {
     const body = await request.json().catch(() => null);
     email = String(body?.email ?? '').trim().toLowerCase();
     password = String(body?.password ?? '');
+    confirmPassword = String(body?.confirmPassword ?? '');
     next = safeNext(String(body?.next ?? '/dashboard'));
   }
 
@@ -56,6 +59,7 @@ export async function POST(request: Request) {
 
   if (!isValidEmail(email)) return respondError('Enter a valid email address.', 400);
   if (password.length < 6) return respondError('Password must contain at least 6 characters.', 400);
+  if (password !== confirmPassword) return respondError('Passwords do not match. Enter the same password twice.', 400);
 
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.createUser({
