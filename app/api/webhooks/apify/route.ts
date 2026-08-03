@@ -17,30 +17,18 @@ type ApifyEvent = {
 function isLeadRecord(value: unknown): value is Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const row = value as Record<string, unknown>;
-
-  const identityFields = [
-    row.email,
-    row.fullName,
-    row.firstName,
-    row.lastName,
-    row.linkedinUrl,
-    row.companyName,
-    row.companyDomain,
-  ];
-
+  const identityFields = [row.email, row.fullName, row.firstName, row.lastName, row.linkedinUrl, row.companyName, row.companyDomain];
   return identityFields.some((field) => typeof field === 'string' && field.trim().length > 0);
 }
 
 function extractDatasetRows(value: unknown): Record<string, unknown>[] {
   if (Array.isArray(value)) return value.filter(isLeadRecord);
   if (!value || typeof value !== 'object') return [];
-
   const object = value as Record<string, unknown>;
   const candidates = [object.items, object.data, object.results, object.leads];
   for (const candidate of candidates) {
     if (Array.isArray(candidate)) return candidate.filter(isLeadRecord);
   }
-
   return isLeadRecord(object) ? [object] : [];
 }
 
@@ -58,11 +46,7 @@ export async function POST(request: Request) {
   const datasetId = event.resource?.defaultDatasetId;
   const status = event.resource?.status || event.eventType || 'UNKNOWN';
 
-  const orderQuery = admin
-    .from('orders')
-    .select('id,user_id,order_code,requested_count,delivery_email,apify_run_id')
-    .limit(1);
-
+  const orderQuery = admin.from('orders').select('id,user_id,order_code,requested_count,delivery_email,apify_run_id').limit(1);
   const { data: orders, error: orderError } = orderId
     ? await orderQuery.eq('id', orderId)
     : await orderQuery.eq('apify_run_id', runId ?? '');
@@ -94,19 +78,10 @@ export async function POST(request: Request) {
 
   if (leadRecords.length === 0) {
     const message = 'No valid leads matched this search. Check that the selected city belongs to the selected state and broaden restrictive filters.';
-    await admin
-      .from('orders')
-      .update({
-        status: 'ready_for_search',
-        delivered_count: 0,
-        apify_dataset_id: datasetId,
-        csv_path: null,
-        xlsx_path: null,
-        completed_at: null,
-        error_message: message,
-      })
-      .eq('id', order.id);
-
+    await admin.from('orders').update({
+      status: 'ready_for_search', delivered_count: 0, apify_dataset_id: datasetId,
+      csv_path: null, xlsx_path: null, completed_at: null, error_message: message,
+    }).eq('id', order.id);
     return NextResponse.json({ ok: false, rows: 0, error: message }, { status: 422 });
   }
 
@@ -125,22 +100,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unable to upload lead files' }, { status: 500 });
   }
 
-  await admin
-    .from('orders')
-    .update({
-      status: 'completed',
-      apify_dataset_id: datasetId,
-      delivered_count: rows.length,
-      csv_path: csvPath,
-      xlsx_path: xlsxPath,
-      completed_at: new Date().toISOString(),
-      error_message: null,
-    })
-    .eq('id', order.id);
+  await admin.from('orders').update({
+    status: 'completed', apify_dataset_id: datasetId, delivered_count: rows.length,
+    csv_path: csvPath, xlsx_path: xlsxPath, completed_at: new Date().toISOString(), error_message: null,
+  }).eq('id', order.id);
+
+  let emailSent = false;
+  let emailError: string | null = null;
 
   if (process.env.RESEND_API_KEY) {
-    await sendCompletionEmail({ to: order.delivery_email, orderCode: order.order_code, deliveredCount: rows.length });
+    const [csvLink, xlsxLink] = await Promise.all([
+      admin.storage.from('lead-files').createSignedUrl(csvPath, 60 * 60 * 24 * 7),
+      admin.storage.from('lead-files').createSignedUrl(xlsxPath, 60 * 60 * 24 * 7),
+    ]);
+
+    try {
+      await sendCompletionEmail({
+        to: order.delivery_email,
+        orderCode: order.order_code,
+        deliveredCount: rows.length,
+        csvUrl: csvLink.data?.signedUrl,
+        xlsxUrl: xlsxLink.data?.signedUrl,
+      });
+      emailSent = true;
+    } catch (error) {
+      emailError = error instanceof Error ? error.message : 'Completion email failed.';
+      console.error('Leadmech completion email failed', emailError);
+    }
+  } else {
+    emailError = 'RESEND_API_KEY is not configured.';
+    console.error('Leadmech completion email skipped: RESEND_API_KEY is not configured.');
   }
 
-  return NextResponse.json({ ok: true, rows: rows.length });
+  return NextResponse.json({ ok: true, rows: rows.length, emailSent, emailError });
 }
