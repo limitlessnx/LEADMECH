@@ -4,8 +4,8 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { getSiteUrl, requireEnv } from '@/lib/site';
 import { getPackage } from '@/lib/packages';
 
-const TEST_COUPON_CODE = 'LEADMECH100TEST';
-const TEST_COUPON_STATUS = 'coupon_LEADMECH100TEST';
+const DEV_COUPON_CODE = 'LEADMECHDEV100';
+const DEV_COUPON_STATUS = 'coupon_LEADMECHDEV100';
 
 export async function POST(request: Request) {
   const supabase = await createServerSupabase();
@@ -25,25 +25,11 @@ export async function POST(request: Request) {
 
   if (packageError || !packageRow) return NextResponse.json({ error: 'Package is not available.' }, { status: 400 });
 
-  if (normalizedCoupon && normalizedCoupon !== TEST_COUPON_CODE) {
+  if (normalizedCoupon && normalizedCoupon !== DEV_COUPON_CODE) {
     return NextResponse.json({ error: 'Invalid coupon code.' }, { status: 400 });
   }
 
-  if (normalizedCoupon === TEST_COUPON_CODE) {
-    const { data: previousCouponOrder } = await admin
-      .from('orders')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('payment_status', TEST_COUPON_STATUS)
-      .limit(1)
-      .maybeSingle();
-
-    if (previousCouponOrder) {
-      return NextResponse.json({ error: 'This test coupon has already been used on your account.' }, { status: 409 });
-    }
-  }
-
-  const isTestCoupon = normalizedCoupon === TEST_COUPON_CODE;
+  const isDevCoupon = normalizedCoupon === DEV_COUPON_CODE;
   const { data: order, error: orderError } = await admin
     .from('orders')
     .insert({
@@ -51,9 +37,9 @@ export async function POST(request: Request) {
       package_id: packageRow.id,
       requested_count: packageRow.lead_count,
       delivery_email: user.email,
-      status: isTestCoupon ? 'ready_for_search' : 'awaiting_payment',
-      payment_status: isTestCoupon ? TEST_COUPON_STATUS : null,
-      paid_at: isTestCoupon ? new Date().toISOString() : null,
+      status: isDevCoupon ? 'ready_for_search' : 'awaiting_payment',
+      payment_status: isDevCoupon ? DEV_COUPON_STATUS : null,
+      paid_at: isDevCoupon ? new Date().toISOString() : null,
     })
     .select('id,order_code')
     .single();
@@ -62,7 +48,7 @@ export async function POST(request: Request) {
 
   const siteUrl = getSiteUrl();
 
-  if (isTestCoupon) {
+  if (isDevCoupon) {
     return NextResponse.json({
       orderId: order.id,
       orderCode: order.order_code,
