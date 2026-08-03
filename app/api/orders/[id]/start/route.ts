@@ -13,6 +13,50 @@ type StartOrder = {
   packages: { name: string; lead_count: number; price_usd: number } | { name: string; lead_count: number; price_usd: number }[] | null;
 };
 
+const US_CITY_STATE: Record<string, string> = {
+  Atlanta: 'Georgia', Austin: 'Texas', Baltimore: 'Maryland', Boston: 'Massachusetts',
+  Charlotte: 'North Carolina', Chicago: 'Illinois', Dallas: 'Texas', Denver: 'Colorado',
+  Houston: 'Texas', 'Las Vegas': 'Nevada', 'Los Angeles': 'California', Miami: 'Florida',
+  'New York City': 'New York', Orlando: 'Florida', Philadelphia: 'Pennsylvania',
+  Phoenix: 'Arizona', 'San Diego': 'California', 'San Francisco': 'California',
+  Seattle: 'Washington', Washington: 'District of Columbia',
+};
+
+function splitValues(value: unknown) {
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean);
+  return String(value ?? '').split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+function validateLocation(search: Record<string, unknown>) {
+  const personCountries = splitValues(search.personCountries);
+  const personStates = splitValues(search.personStates);
+  const personCities = splitValues(search.personCities);
+
+  if (personCountries[0] === 'United States' && personStates[0]) {
+    for (const city of personCities) {
+      const expectedState = US_CITY_STATE[city];
+      if (expectedState && expectedState !== personStates[0]) {
+        return `${city} is in ${expectedState}, not ${personStates[0]}. Correct the person location before starting the search.`;
+      }
+    }
+  }
+
+  const companyCountries = splitValues(search.companyCountries);
+  const companyStates = splitValues(search.companyStates);
+  const companyCities = splitValues(search.companyCities);
+
+  if (companyCountries[0] === 'United States' && companyStates[0]) {
+    for (const city of companyCities) {
+      const expectedState = US_CITY_STATE[city];
+      if (expectedState && expectedState !== companyStates[0]) {
+        return `${city} is in ${expectedState}, not ${companyStates[0]}. Correct the company location before starting the search.`;
+      }
+    }
+  }
+
+  return null;
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createServerSupabase();
@@ -24,6 +68,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const confirmEmail = search?.confirmEmail;
   if (!deliveryEmail || deliveryEmail !== confirmEmail) {
     return NextResponse.json({ error: 'Delivery emails must match.' }, { status: 400 });
+  }
+
+  const locationError = validateLocation(search ?? {});
+  if (locationError) {
+    return NextResponse.json({ error: locationError }, { status: 400 });
   }
 
   const admin = createAdminClient();
