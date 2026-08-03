@@ -4,8 +4,8 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { getSiteUrl, requireEnv } from '@/lib/site';
 import { getPackage } from '@/lib/packages';
 
-const DEV_COUPON_CODE = 'LEADMECHDEV100';
-const DEV_COUPON_STATUS = 'coupon_LEADMECHDEV100';
+const TEST_COUPON_CODE = 'LEADMECHDEV100';
+const TEST_COUPON_STATUS = 'coupon_LEADMECHDEV100';
 
 export async function POST(request: Request) {
   const supabase = await createServerSupabase();
@@ -25,11 +25,11 @@ export async function POST(request: Request) {
 
   if (packageError || !packageRow) return NextResponse.json({ error: 'Package is not available.' }, { status: 400 });
 
-  if (normalizedCoupon && normalizedCoupon !== DEV_COUPON_CODE) {
+  if (normalizedCoupon && normalizedCoupon !== TEST_COUPON_CODE) {
     return NextResponse.json({ error: 'Invalid coupon code.' }, { status: 400 });
   }
 
-  const isDevCoupon = normalizedCoupon === DEV_COUPON_CODE;
+  const isTestCoupon = normalizedCoupon === TEST_COUPON_CODE;
   const { data: order, error: orderError } = await admin
     .from('orders')
     .insert({
@@ -37,9 +37,9 @@ export async function POST(request: Request) {
       package_id: packageRow.id,
       requested_count: packageRow.lead_count,
       delivery_email: user.email,
-      status: isDevCoupon ? 'ready_for_search' : 'awaiting_payment',
-      payment_status: isDevCoupon ? DEV_COUPON_STATUS : null,
-      paid_at: isDevCoupon ? new Date().toISOString() : null,
+      status: isTestCoupon ? 'ready_for_search' : 'awaiting_payment',
+      payment_status: isTestCoupon ? TEST_COUPON_STATUS : null,
+      paid_at: isTestCoupon ? new Date().toISOString() : null,
     })
     .select('id,order_code')
     .single();
@@ -48,12 +48,12 @@ export async function POST(request: Request) {
 
   const siteUrl = getSiteUrl();
 
-  if (isDevCoupon) {
+  if (isTestCoupon) {
     return NextResponse.json({
       orderId: order.id,
       orderCode: order.order_code,
       couponApplied: true,
-      successUrl: `${siteUrl}/search?order=${order.id}`,
+      successPath: `/search?order=${order.id}`,
     });
   }
 
