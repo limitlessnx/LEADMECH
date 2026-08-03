@@ -3,6 +3,7 @@ import Link from 'next/link';
 export function DashboardShell({ children, active = 'Dashboard' }: { children: React.ReactNode; active?: string }) {
   const items = [
     ['Dashboard', '/dashboard'],
+    ['My Leads', '/dashboard/leads'],
     ['New Search', '/search'],
     ['Orders', '/dashboard'],
     ['Saved Templates', '/dashboard'],
