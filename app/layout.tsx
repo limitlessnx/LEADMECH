@@ -1,5 +1,6 @@
 import './globals.css';
 import './action-loader.css';
+import './search-form.css';
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { GlobalActionLoader } from '@/components/GlobalActionLoader';
