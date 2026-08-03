@@ -19,30 +19,41 @@ export function PackageCheckout() {
     setLoading(true);
     localStorage.setItem('leadmech-package', JSON.stringify(selectedPackage));
 
-    const response = await fetch('/api/payments/nowpayments/create', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ packageId: selectedPackage.id, couponCode }),
-    });
-    const data = await response.json();
-    setLoading(false);
+    try {
+      const response = await fetch('/api/payments/nowpayments/create', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ packageId: selectedPackage.id, couponCode }),
+      });
+      const data = await response.json();
 
-    if (response.status === 401) {
-      window.location.href = `/auth?next=${encodeURIComponent(`/checkout?package=${selectedPackage.id}`)}`;
-      return;
+      if (response.status === 401) {
+        window.location.assign(`/auth?next=${encodeURIComponent(`/checkout?package=${selectedPackage.id}`)}`);
+        return;
+      }
+
+      if (!response.ok) {
+        setError(data.error || 'Unable to start checkout.');
+        return;
+      }
+
+      if (data.couponApplied && data.successPath) {
+        window.location.assign(data.successPath);
+        return;
+      }
+
+      if (!data.invoiceUrl) {
+        setError('Checkout did not return a payment link.');
+        return;
+      }
+
+      window.location.assign(data.invoiceUrl);
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    if (!response.ok) {
-      setError(data.error || 'Unable to start checkout.');
-      return;
-    }
-
-    if (data.couponApplied && data.successUrl) {
-      window.location.href = data.successUrl;
-      return;
-    }
-
-    window.location.href = data.invoiceUrl;
   };
 
   return (
@@ -57,7 +68,7 @@ export function PackageCheckout() {
         <div className="list feature-list">
           <span>OK One customised lead search</span>
           <span>OK Cleaned contact and company records</span>
-          <span>OK Permanent dashboard access</span>
+          <span>OK Files available for 30 days</span>
           <span>OK Completion email with download links</span>
         </div>
         <label className="form-field">
@@ -85,7 +96,7 @@ export function PackageCheckout() {
         <ol className="numbered-list">
           <li><span>1</span><div><strong>Pay in crypto</strong><p className="muted">NOWPayments confirms the transaction, unless a valid test coupon covers the order.</p></div></li>
           <li><span>2</span><div><strong>Configure your search</strong><p className="muted">Choose any filters that matter to you.</p></div></li>
-          <li><span>3</span><div><strong>Receive cleaned files</strong><p className="muted">CSV and Excel remain in your dashboard.</p></div></li>
+          <li><span>3</span><div><strong>Receive cleaned files</strong><p className="muted">CSV and Excel stay in My Leads for 30 days.</p></div></li>
         </ol>
       </aside>
     </div>
