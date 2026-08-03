@@ -15,7 +15,7 @@ export default async function Search({ searchParams }: { searchParams: Promise<{
     .from('orders')
     .select('id,order_code,status,requested_count,delivered_count,delivery_email,search_filters,csv_path,xlsx_path,error_message,created_at,paid_at,started_at,completed_at,packages(id,name,lead_count,price_usd)')
     .eq('user_id', user.id)
-    .in('status', ['paid', 'ready_for_search'])
+    .in('status', ['paid', 'ready_for_search', 'no_results'])
     .order('created_at', { ascending: false })
     .limit(1);
 
@@ -39,6 +39,14 @@ export default async function Search({ searchParams }: { searchParams: Promise<{
 
   return (
     <DashboardShell active="New Search">
+      {order.status === 'no_results' && (
+        <div className="card" style={{ marginBottom: 18, borderColor: 'rgba(245,158,11,.45)' }}>
+          <span className="eyebrow">No leads matched</span>
+          <h2 style={{ marginTop: 8 }}>Adjust one filter and run again</h2>
+          <p className="muted">{order.error_message || 'The selected filters were too restrictive when combined.'}</p>
+          <p className="muted">You have not lost this order and do not need to purchase again.</p>
+        </div>
+      )}
       <SearchBuilder order={{
         id: order.id,
         orderCode: order.order_code,
