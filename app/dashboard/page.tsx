@@ -35,7 +35,7 @@ export default async function Dashboard() {
         <h2>Recent orders</h2>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Order</th><th>Package</th><th>Status</th><th>Date</th><th>Files</th></tr></thead>
+            <thead><tr><th>Order</th><th>Package</th><th>Status</th><th>Date</th><th>Files / action</th></tr></thead>
             <tbody>
               {rows.map((order) => (
                 <tr key={order.id}>
@@ -43,7 +43,7 @@ export default async function Dashboard() {
                   <td>{(order.requested_count ?? order.packages?.lead_count ?? 0).toLocaleString('en-GB')}</td>
                   <td><span className={`status ${order.status}`}>{order.status.replaceAll('_', ' ')}</span></td>
                   <td>{new Date(order.created_at).toLocaleDateString('en-GB')}</td>
-                  <td>{order.status === 'completed' ? <><Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=csv`}>CSV</Link> <Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=xlsx`}>Excel</Link></> : order.status === 'ready_for_search' || order.status === 'paid' ? <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Start</Link> : '-'}</td>
+                  <td>{order.status === 'completed' ? <><Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=csv`}>CSV</Link> <Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=xlsx`}>Excel</Link></> : order.status === 'no_results' ? <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Adjust filters</Link> : order.status === 'ready_for_search' || order.status === 'paid' ? <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Start</Link> : '-'}</td>
                 </tr>
               ))}
               {!rows.length && <tr><td colSpan={5}>No orders yet. Choose a package to begin.</td></tr>}
