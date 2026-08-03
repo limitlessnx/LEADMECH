@@ -14,6 +14,36 @@ type ApifyEvent = {
   };
 };
 
+function isLeadRecord(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const row = value as Record<string, unknown>;
+
+  const identityFields = [
+    row.email,
+    row.fullName,
+    row.firstName,
+    row.lastName,
+    row.linkedinUrl,
+    row.companyName,
+    row.companyDomain,
+  ];
+
+  return identityFields.some((field) => typeof field === 'string' && field.trim().length > 0);
+}
+
+function extractDatasetRows(value: unknown): Record<string, unknown>[] {
+  if (Array.isArray(value)) return value.filter(isLeadRecord);
+  if (!value || typeof value !== 'object') return [];
+
+  const object = value as Record<string, unknown>;
+  const candidates = [object.items, object.data, object.results, object.leads];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate.filter(isLeadRecord);
+  }
+
+  return isLeadRecord(object) ? [object] : [];
+}
+
 export async function POST(request: Request) {
   const url = new URL(request.url);
   const configuredSecret = process.env.APIFY_WEBHOOK_SECRET;
@@ -60,7 +90,27 @@ export async function POST(request: Request) {
   }
 
   const raw = await res.json();
-  const rows = raw.slice(0, limit).map(cleanLead);
+  const leadRecords = extractDatasetRows(raw).slice(0, limit);
+
+  if (leadRecords.length === 0) {
+    const message = 'No valid leads matched this search. Check that the selected city belongs to the selected state and broaden restrictive filters.';
+    await admin
+      .from('orders')
+      .update({
+        status: 'ready_for_search',
+        delivered_count: 0,
+        apify_dataset_id: datasetId,
+        csv_path: null,
+        xlsx_path: null,
+        completed_at: null,
+        error_message: message,
+      })
+      .eq('id', order.id);
+
+    return NextResponse.json({ ok: false, rows: 0, error: message }, { status: 422 });
+  }
+
+  const rows = leadRecords.map(cleanLead);
   const xlsx = rowsToXlsx(rows);
   const csv = rowsToCsv(rows);
   const basePath = `${order.user_id}/${order.id}`;
