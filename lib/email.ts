@@ -22,7 +22,7 @@ function getMailer() {
 }
 
 function fromEmail() {
-  return process.env.RESEND_FROM_EMAIL || 'Leadmech <notifications@gencouv.com>';
+  return process.env.RESEND_FROM_EMAIL || 'Leadmech <info@leadmech.xyz>';
 }
 
 export async function sendPaymentConfirmationEmail(details: PaymentEmail) {
