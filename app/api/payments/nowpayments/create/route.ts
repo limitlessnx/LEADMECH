@@ -4,7 +4,8 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { getSiteUrl, requireEnv } from '@/lib/site';
 import { getPackage } from '@/lib/packages';
 
-const TEST_COUPON_CODE = 'LEADMECH100';
+const TEST_COUPON_CODE = 'LEADMECH100TEST';
+const TEST_COUPON_STATUS = 'coupon_LEADMECH100TEST';
 
 export async function POST(request: Request) {
   const supabase = await createServerSupabase();
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
       .from('orders')
       .select('id')
       .eq('user_id', user.id)
-      .eq('payment_status', 'coupon_LEADMECH100')
+      .eq('payment_status', TEST_COUPON_STATUS)
       .limit(1)
       .maybeSingle();
 
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
       requested_count: packageRow.lead_count,
       delivery_email: user.email,
       status: isTestCoupon ? 'ready_for_search' : 'awaiting_payment',
-      payment_status: isTestCoupon ? 'coupon_LEADMECH100' : null,
+      payment_status: isTestCoupon ? TEST_COUPON_STATUS : null,
       paid_at: isTestCoupon ? new Date().toISOString() : null,
     })
     .select('id,order_code')
