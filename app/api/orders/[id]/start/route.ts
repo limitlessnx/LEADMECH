@@ -71,9 +71,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const locationError = validateLocation(search ?? {});
-  if (locationError) {
-    return NextResponse.json({ error: locationError }, { status: 400 });
-  }
+  if (locationError) return NextResponse.json({ error: locationError }, { status: 400 });
 
   const admin = createAdminClient();
   const { data: order, error: orderError } = await admin
@@ -85,7 +83,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (orderError || !order || order.user_id !== user.id) {
     return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
   }
-  if (!['paid', 'ready_for_search'].includes(order.status)) {
+  if (!['paid', 'ready_for_search', 'no_results'].includes(order.status)) {
     return NextResponse.json({ error: 'This order is not ready for search.' }, { status: 409 });
   }
 
@@ -97,17 +95,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const packageInfo = Array.isArray(order.packages) ? order.packages[0] : order.packages;
   const leadCount = order.requested_count ?? packageInfo?.lead_count ?? 0;
-  const actorInput = { count: leadCount, ...buildApifyInput(search ?? {}) };
+  const actorInput = buildApifyInput({ ...(search ?? {}), totalResults: leadCount });
   const siteUrl = getSiteUrl();
   const webhookSecret = process.env.APIFY_WEBHOOK_SECRET;
   const completionWebhookUrl = `${siteUrl}/api/webhooks/apify${webhookSecret ? `?secret=${encodeURIComponent(webhookSecret)}` : ''}`;
   const webhooks = Buffer.from(JSON.stringify([{
-    eventTypes: [
-      'ACTOR.RUN.SUCCEEDED',
-      'ACTOR.RUN.FAILED',
-      'ACTOR.RUN.TIMED_OUT',
-      'ACTOR.RUN.ABORTED',
-    ],
+    eventTypes: ['ACTOR.RUN.SUCCEEDED', 'ACTOR.RUN.FAILED', 'ACTOR.RUN.TIMED_OUT', 'ACTOR.RUN.ABORTED'],
     requestUrl: completionWebhookUrl,
     payloadTemplate: JSON.stringify({
       orderId: id,
@@ -117,31 +110,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     shouldInterpolateStrings: true,
   }])).toString('base64');
 
-  await admin
-    .from('orders')
-    .update({
-      status: 'processing',
-      requested_count: leadCount,
-      delivery_email: deliveryEmail,
-      search_filters: search ?? {},
-      apify_input: actorInput,
-      started_at: new Date().toISOString(),
-      error_message: null,
-    })
-    .eq('id', id);
+  await admin.from('orders').update({
+    status: 'processing',
+    requested_count: leadCount,
+    delivery_email: deliveryEmail,
+    search_filters: search ?? {},
+    apify_input: actorInput,
+    started_at: new Date().toISOString(),
+    completed_at: null,
+    delivered_count: 0,
+    csv_path: null,
+    xlsx_path: null,
+    error_message: null,
+  }).eq('id', id);
 
   const apifyResponse = await fetch(`https://api.apify.com/v2/actors/${actorId}/runs?waitForFinish=0&webhooks=${encodeURIComponent(webhooks)}`, {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${token}`,
-    },
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
     body: JSON.stringify(actorInput),
     cache: 'no-store',
   });
 
   const apifyData = await apifyResponse.json().catch(() => ({}));
-
   if (!apifyResponse.ok || !apifyData?.data?.id) {
     const message = typeof apifyData?.error?.message === 'string'
       ? apifyData.error.message
@@ -151,26 +141,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ? apifyData.error
       : 'Unable to start the Apify lead search.';
 
-    await admin
-      .from('orders')
-      .update({ status: 'failed', error_message: message })
-      .eq('id', id);
-
+    await admin.from('orders').update({ status: 'failed', error_message: message }).eq('id', id);
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
-  await admin
-    .from('orders')
-    .update({
-      status: 'processing',
-      apify_run_id: apifyData.data.id,
-      apify_dataset_id: apifyData.data.defaultDatasetId ?? null,
-    })
-    .eq('id', id);
+  await admin.from('orders').update({
+    status: 'processing',
+    apify_run_id: apifyData.data.id,
+    apify_dataset_id: apifyData.data.defaultDatasetId ?? null,
+  }).eq('id', id);
 
-  return NextResponse.json({
-    ok: true,
-    status: apifyData.data.status ?? 'processing',
-    runId: apifyData.data.id,
-  });
+  return NextResponse.json({ ok: true, status: apifyData.data.status ?? 'processing', runId: apifyData.data.id });
 }
