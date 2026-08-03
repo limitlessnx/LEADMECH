@@ -1,4 +1,4 @@
-export type OrderStatus = 'awaiting_payment' | 'paid' | 'ready_for_search' | 'processing' | 'completed' | 'failed';
+export type OrderStatus = 'awaiting_payment' | 'paid' | 'ready_for_search' | 'processing' | 'no_results' | 'completed' | 'failed';
 
 export type PackageRow = {
   id: string;
