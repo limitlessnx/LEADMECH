@@ -1,5 +1,5 @@
 export type LeadPackage = {
-  id: 'test' | 'starter' | 'growth' | 'pro' | 'scale';
+  id: 'starter' | 'growth' | 'pro' | 'scale';
   name: string;
   leads: number;
   price: number;
@@ -7,7 +7,6 @@ export type LeadPackage = {
 };
 
 export const packages: LeadPackage[] = [
-  { id: 'test', name: 'Test Purchase', leads: 100, price: 2 },
   { id: 'starter', name: 'Starter', leads: 5000, price: 35 },
   { id: 'growth', name: 'Growth', leads: 10000, price: 50 },
   { id: 'pro', name: 'Pro', leads: 25000, price: 100, recommended: true },
@@ -15,5 +14,5 @@ export const packages: LeadPackage[] = [
 ];
 
 export function getPackage(id?: string | null) {
-  return packages.find((item) => item.id === id) ?? packages[1];
+  return packages.find((item) => item.id === id) ?? packages[0];
 }
