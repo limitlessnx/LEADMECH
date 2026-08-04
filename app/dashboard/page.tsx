@@ -9,6 +9,14 @@ export default async function Dashboard() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/auth?next=/dashboard');
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (profile?.role === 'admin') redirect('/admin');
+
   const { data: orders } = await supabase
     .from('orders')
     .select('id,order_code,status,requested_count,delivered_count,delivery_email,search_filters,csv_path,xlsx_path,error_message,created_at,paid_at,started_at,completed_at,packages(id,name,lead_count,price_usd)')
