@@ -135,23 +135,10 @@ function splitValues(value: string) {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
-function SearchableSelect({
-  label,
-  options,
-  values,
-  onChange,
-  placeholder,
-  multiple = false,
-  allowCustom = false,
-  disabled = false,
-  helper,
-}: SearchableSelectProps) {
+function SearchableSelect({ label, options, values, onChange, placeholder, multiple = false, allowCustom = false, disabled = false, helper }: SearchableSelectProps) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const filtered = options
-    .filter((option) => option.toLowerCase().includes(query.toLowerCase()))
-    .filter((option) => !values.includes(option))
-    .slice(0, 60);
+  const filtered = options.filter((option) => option.toLowerCase().includes(query.toLowerCase())).filter((option) => !values.includes(option)).slice(0, 60);
 
   const selectValue = (value: string) => {
     if (!value.trim()) return;
@@ -163,105 +150,20 @@ function SearchableSelect({
   return (
     <div className="field" style={{ position: 'relative' }}>
       <label>{label}</label>
-      {values.length > 0 && (
-        <div className="choice-row" style={{ marginBottom: 8 }}>
-          {values.map((value) => (
-            <button
-              type="button"
-              className="choice selected"
-              key={`${label}-${value}`}
-              onClick={() => onChange(values.filter((item) => item !== value))}
-              title="Remove"
-            >
-              {value} ×
-            </button>
-          ))}
-        </div>
-      )}
-      <input
-        value={query}
-        disabled={disabled}
-        placeholder={disabled ? 'Select a country first' : placeholder}
-        onFocus={() => setOpen(true)}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          setOpen(true);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' && allowCustom && query.trim()) {
-            event.preventDefault();
-            selectValue(query);
-          }
-        }}
-        autoComplete="off"
-      />
-      {open && !disabled && (
-        <div
-          style={{
-            position: 'absolute', zIndex: 30, left: 0, right: 0, top: '100%', marginTop: 6,
-            maxHeight: 280, overflowY: 'auto', border: '1px solid rgba(255,255,255,.14)',
-            borderRadius: 12, background: '#111827', boxShadow: '0 18px 50px rgba(0,0,0,.45)',
-          }}
-          onMouseDown={(event) => event.preventDefault()}
-        >
-          {filtered.map((option) => (
-            <button
-              type="button"
-              key={`${label}-option-${option}`}
-              onClick={() => selectValue(option)}
-              style={{
-                display: 'block', width: '100%', padding: '12px 14px', textAlign: 'left',
-                border: 0, borderBottom: '1px solid rgba(255,255,255,.06)', background: 'transparent',
-                color: 'inherit', cursor: 'pointer',
-              }}
-            >
-              {option}
-            </button>
-          ))}
-          {allowCustom && query.trim() && !options.some((option) => option.toLowerCase() === query.trim().toLowerCase()) && (
-            <button
-              type="button"
-              onClick={() => selectValue(query)}
-              style={{
-                display: 'block', width: '100%', padding: '12px 14px', textAlign: 'left',
-                border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer',
-              }}
-            >
-              Add “{query.trim()}”
-            </button>
-          )}
-          {!filtered.length && !(allowCustom && query.trim()) && (
-            <div className="muted" style={{ padding: 14 }}>No matching options.</div>
-          )}
-        </div>
-      )}
+      {values.length > 0 && <div className="choice-row" style={{ marginBottom: 8 }}>{values.map((value) => <button type="button" className="choice selected" key={`${label}-${value}`} onClick={() => onChange(values.filter((item) => item !== value))} title="Remove">{value} ×</button>)}</div>}
+      <input value={query} disabled={disabled} placeholder={disabled ? 'Select a country first' : placeholder} onFocus={() => setOpen(true)} onBlur={() => window.setTimeout(() => setOpen(false), 120)} onChange={(event) => { setQuery(event.target.value); setOpen(true); }} onKeyDown={(event) => { if (event.key === 'Enter' && allowCustom && query.trim()) { event.preventDefault(); selectValue(query); } }} autoComplete="off" />
+      {open && !disabled && <div className="search-select-menu" onMouseDown={(event) => event.preventDefault()}>
+        {filtered.map((option) => <button type="button" key={`${label}-option-${option}`} onClick={() => selectValue(option)}>{option}</button>)}
+        {allowCustom && query.trim() && !options.some((option) => option.toLowerCase() === query.trim().toLowerCase()) && <button type="button" onClick={() => selectValue(query)}>Add “{query.trim()}”</button>}
+        {!filtered.length && !(allowCustom && query.trim()) && <div className="muted" style={{ padding: 14 }}>No matching options.</div>}
+      </div>}
       {helper && <small>{helper}</small>}
     </div>
   );
 }
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      aria-pressed={checked}
-      style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
-        width: '100%', padding: '13px 14px', borderRadius: 12,
-        border: '1px solid rgba(255,255,255,.14)', background: checked ? 'rgba(59,130,246,.14)' : 'transparent',
-        color: 'inherit', cursor: 'pointer',
-      }}
-    >
-      <span>{label}</span>
-      <span style={{
-        width: 42, height: 24, padding: 3, borderRadius: 999, background: checked ? '#3b82f6' : '#374151',
-        display: 'flex', justifyContent: checked ? 'flex-end' : 'flex-start', transition: 'all .2s ease',
-      }}>
-        <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', display: 'block' }} />
-      </span>
-    </button>
-  );
+  return <button type="button" onClick={() => onChange(!checked)} aria-pressed={checked} className={`contact-toggle ${checked ? 'selected' : ''}`}><span>{label}</span><span className="toggle-track"><span /></span></button>;
 }
 
 export function SearchBuilder({ order }: { order: OrderSummary }) {
@@ -272,7 +174,6 @@ export function SearchBuilder({ order }: { order: OrderSummary }) {
     emailStatus: 'verified', hasEmail: 'required', hasPhone: 'not-required', totalResults: maxResults,
     email: order.deliveryEmail, confirmEmail: order.deliveryEmail,
   };
-
   const [form, setForm] = useState<SearchForm>(initialForm);
   const [submitted, setSubmitted] = useState(false);
 
@@ -281,20 +182,8 @@ export function SearchBuilder({ order }: { order: OrderSummary }) {
     if (!savedSearch) return;
     try {
       const saved = JSON.parse(savedSearch);
-      setForm({
-        ...initialForm,
-        ...saved,
-        companyStates: saved.companyStates || '',
-        emailStatus: saved.emailStatus || (saved.hasEmail === 'verified' ? 'verified' : 'any'),
-        hasEmail: saved.hasEmail === 'not-required' ? 'not-required' : 'required',
-        hasPhone: saved.hasPhone === 'required' ? 'required' : 'not-required',
-        totalResults: Math.min(Number(saved.totalResults || maxResults), maxResults),
-        email: order.deliveryEmail,
-        confirmEmail: order.deliveryEmail,
-      });
-    } catch {
-      setForm(initialForm);
-    }
+      setForm({ ...initialForm, ...saved, companyStates: saved.companyStates || '', emailStatus: saved.emailStatus || (saved.hasEmail === 'verified' ? 'verified' : 'any'), hasEmail: saved.hasEmail === 'not-required' ? 'not-required' : 'required', hasPhone: saved.hasPhone === 'required' ? 'required' : 'not-required', totalResults: Math.min(Number(saved.totalResults || maxResults), maxResults), email: order.deliveryEmail, confirmEmail: order.deliveryEmail });
+    } catch { setForm(initialForm); }
   }, [order.id, order.deliveryEmail, maxResults]);
 
   const personCountry = splitValues(form.personCountries)[0] || '';
@@ -303,259 +192,53 @@ export function SearchBuilder({ order }: { order: OrderSummary }) {
   const companyStateOptions = STATE_OPTIONS[companyCountry] || [];
   const personCityOptions = CITY_OPTIONS[personCountry] || [];
   const companyCityOptions = CITY_OPTIONS[companyCountry] || [];
-
   const emailsMatch = form.email.length > 0 && form.email === form.confirmEmail;
-  const canReview = emailsMatch && form.totalResults > 0 && form.totalResults <= maxResults;
-  const activeFilters = useMemo(() => {
-    return [
-      form.companyIndustries, form.companyCountries, form.companyStates, form.companyCities,
-      form.personCountries, form.personStates, form.personCities, form.jobTitles,
-    ].filter(Boolean).length + form.companySizes.length + form.seniority.length;
-  }, [form]);
+  const personCityHasState = !form.personCities || Boolean(form.personStates);
+  const companyCityHasState = !form.companyCities || Boolean(form.companyStates);
+  const cityFallbackReady = personCityHasState && companyCityHasState;
+  const canReview = emailsMatch && cityFallbackReady && form.totalResults > 0 && form.totalResults <= maxResults;
+  const activeFilters = useMemo(() => [form.companyIndustries, form.companyCountries, form.companyStates, form.companyCities, form.personCountries, form.personStates, form.personCities, form.jobTitles].filter(Boolean).length + form.companySizes.length + form.seniority.length, [form]);
 
-  const setStringValues = (field: keyof SearchForm, values: string[]) => {
-    setForm((current) => ({ ...current, [field]: values.join(', ') }));
-  };
+  const setStringValues = (field: keyof SearchForm, values: string[]) => setForm((current) => ({ ...current, [field]: values.join(', ') }));
+  const toggleArrayValue = (field: 'companySizes' | 'seniority', value: string) => setForm((current) => ({ ...current, [field]: current[field].includes(value) ? current[field].filter((item) => item !== value) : [...current[field], value] }));
+  const saveSearch = () => { setSubmitted(true); if (!canReview) return; localStorage.setItem(`leadmech-search-${order.id}`, JSON.stringify(form)); localStorage.setItem('leadmech-search', JSON.stringify(form)); };
 
-  const toggleArrayValue = (field: 'companySizes' | 'seniority', value: string) => {
-    setForm((current) => ({
-      ...current,
-      [field]: current[field].includes(value)
-        ? current[field].filter((item) => item !== value)
-        : [...current[field], value],
-    }));
-  };
+  return <>
+    <div className="topbar"><div><span className="eyebrow">Apify actor search</span><h1>Build your lead search</h1><p className="muted">Choose broad targeting filters. Cities are treated as preferences and automatically expand to the selected state when more leads are needed.</p></div><div className="locked-package"><span>Locked order {order.orderCode}</span><strong>{order.leadCount.toLocaleString('en-GB')} leads</strong></div></div>
+    <div className="builder-layout">
+      <form className="card form-grid" onSubmit={(event) => event.preventDefault()}>
+        <div className="form-section full"><span>Person location</span></div>
+        <SearchableSelect label="Person country" options={COUNTRIES} values={splitValues(form.personCountries)} onChange={(values) => { setStringValues('personCountries', values.slice(-1)); setForm((current) => ({ ...current, personStates: '', personCities: '' })); }} placeholder="Search countries..." helper="Actor field: personLocationCountryIncludes" />
+        <SearchableSelect label="Person state" options={personStateOptions} values={splitValues(form.personStates)} onChange={(values) => setStringValues('personStates', values.slice(-1))} placeholder="Search states..." allowCustom disabled={!personCountry} helper="Required when a person city preference is selected" />
+        <div className="full"><SearchableSelect label="Person city preference (optional)" options={personCityOptions} values={splitValues(form.personCities)} onChange={(values) => setStringValues('personCities', values)} placeholder="Search or type a preferred city..." multiple allowCustom disabled={!personCountry} helper="We search this city first, then expand to the selected state to help fill the purchased lead amount." /></div>
+        {submitted && !personCityHasState && <small className="error-text full">Select a person state when using a person city preference.</small>}
 
-  const saveSearch = () => {
-    setSubmitted(true);
-    if (!canReview) return;
-    localStorage.setItem(`leadmech-search-${order.id}`, JSON.stringify(form));
-    localStorage.setItem('leadmech-search', JSON.stringify(form));
-  };
+        <div className="form-section full"><span>Company location and profile</span></div>
+        <SearchableSelect label="Company country" options={COUNTRIES} values={splitValues(form.companyCountries)} onChange={(values) => { setStringValues('companyCountries', values.slice(-1)); setForm((current) => ({ ...current, companyStates: '', companyCities: '' })); }} placeholder="Search countries..." helper="Actor field: companyLocationCountryIncludes" />
+        <SearchableSelect label="Company state" options={companyStateOptions} values={splitValues(form.companyStates)} onChange={(values) => setStringValues('companyStates', values.slice(-1))} placeholder="Search states..." allowCustom disabled={!companyCountry} helper="Required when a company city preference is selected" />
+        <div className="full"><SearchableSelect label="Company city preference (optional)" options={companyCityOptions} values={splitValues(form.companyCities)} onChange={(values) => setStringValues('companyCities', values)} placeholder="Search or type a preferred city..." multiple allowCustom disabled={!companyCountry} helper="We search this city first, then expand to the selected state to help fill the purchased lead amount." /></div>
+        {submitted && !companyCityHasState && <small className="error-text full">Select a company state when using a company city preference.</small>}
+        <div className="full"><SearchableSelect label="Company industry" options={INDUSTRIES} values={splitValues(form.companyIndustries)} onChange={(values) => setStringValues('companyIndustries', values)} placeholder="Search industries..." multiple helper="Searchable multi-select mapped to companyIndustryIncludes" /></div>
+        <div className="field full"><label>Company size</label><div className="choice-row">{COMPANY_SIZE_OPTIONS.map((value) => <button type="button" key={value} onClick={() => toggleArrayValue('companySizes', value)} className={`choice ${form.companySizes.includes(value) ? 'selected' : ''}`}>{value}</button>)}</div><small>Actor field: companySizeIncludes</small></div>
 
-  return (
-    <>
-      <div className="topbar">
-        <div>
-          <span className="eyebrow">Apify actor search</span>
-          <h1>Build your lead search</h1>
-          <p className="muted">Search and select supported actor values. City and job-title fields also accept custom entries.</p>
-        </div>
-        <div className="locked-package">
-          <span>Locked order {order.orderCode}</span>
-          <strong>{order.leadCount.toLocaleString('en-GB')} leads</strong>
-        </div>
-      </div>
+        <div className="form-section full"><span>Role and contact data</span></div>
+        <div className="full"><SearchableSelect label="Job title" options={JOB_TITLES} values={splitValues(form.jobTitles)} onChange={(values) => setStringValues('jobTitles', values)} placeholder="Search or type a job title..." multiple allowCustom helper="Suggestions plus custom values, mapped to personTitleIncludes" /></div>
+        <div className="field full"><label>Seniority</label><div className="choice-row">{SENIORITY_OPTIONS.map((value) => <button type="button" key={value} onClick={() => toggleArrayValue('seniority', value)} className={`choice ${form.seniority.includes(value) ? 'selected' : ''}`}>{SENIORITY_LABELS[value]}</button>)}</div><small>Uses the actor’s supported seniority values.</small></div>
+        <div className="field"><label>Email status</label><select value={form.emailStatus} disabled={form.hasEmail === 'not-required'} onChange={(event) => setForm({ ...form, emailStatus: event.target.value as SearchForm['emailStatus'] })}><option value="verified">Verified only</option><option value="unverified">Unverified only</option><option value="any">Any email status</option></select></div>
+        <div className="field"><label>Contact requirements</label><div style={{ display: 'grid', gap: 10 }}><Toggle label="Has email" checked={form.hasEmail === 'required'} onChange={(checked) => setForm({ ...form, hasEmail: checked ? 'required' : 'not-required' })} /><Toggle label="Has phone" checked={form.hasPhone === 'required'} onChange={(checked) => setForm({ ...form, hasPhone: checked ? 'required' : 'not-required' })} /></div></div>
 
-      <div className="builder-layout">
-        <form className="card form-grid" onSubmit={(event) => event.preventDefault()}>
-          <div className="form-section full"><span>Person location</span></div>
-          <SearchableSelect
-            label="Person country"
-            options={COUNTRIES}
-            values={splitValues(form.personCountries)}
-            onChange={(values) => {
-              setStringValues('personCountries', values.slice(-1));
-              setForm((current) => ({ ...current, personStates: '', personCities: '' }));
-            }}
-            placeholder="Search countries..."
-            helper="Actor field: personLocationCountryIncludes"
-          />
-          <SearchableSelect
-            label="Person state"
-            options={personStateOptions}
-            values={splitValues(form.personStates)}
-            onChange={(values) => setStringValues('personStates', values.slice(-1))}
-            placeholder="Search states..."
-            allowCustom
-            disabled={!personCountry}
-            helper="Filtered by selected person country"
-          />
-          <div className="full">
-            <SearchableSelect
-              label="Person city"
-              options={personCityOptions}
-              values={splitValues(form.personCities)}
-              onChange={(values) => setStringValues('personCities', values)}
-              placeholder="Search or type a city..."
-              multiple
-              allowCustom
-              disabled={!personCountry}
-              helper="Actor field: personLocationCityIncludes"
-            />
-          </div>
+        <div className="form-section full"><span>Result quantity</span></div>
+        <div className="field full"><label>Total results</label><input type="number" min={1} max={maxResults} value={form.totalResults} onChange={(event) => setForm({ ...form, totalResults: Math.min(Math.max(Number(event.target.value) || 1, 1), maxResults) })} /><input type="range" min={1} max={maxResults} step={Math.max(1, Math.round(maxResults / 100))} value={form.totalResults} onChange={(event) => setForm({ ...form, totalResults: Number(event.target.value) })} /><small>Maximum for this purchase: {maxResults.toLocaleString('en-GB')} leads. Actor maximum per run: 50,000.</small></div>
 
-          <div className="form-section full"><span>Company location and profile</span></div>
-          <SearchableSelect
-            label="Company country"
-            options={COUNTRIES}
-            values={splitValues(form.companyCountries)}
-            onChange={(values) => {
-              setStringValues('companyCountries', values.slice(-1));
-              setForm((current) => ({ ...current, companyStates: '', companyCities: '' }));
-            }}
-            placeholder="Search countries..."
-            helper="Actor field: companyLocationCountryIncludes"
-          />
-          <SearchableSelect
-            label="Company state"
-            options={companyStateOptions}
-            values={splitValues(form.companyStates)}
-            onChange={(values) => setStringValues('companyStates', values.slice(-1))}
-            placeholder="Search states..."
-            allowCustom
-            disabled={!companyCountry}
-            helper="Filtered by selected company country"
-          />
-          <div className="full">
-            <SearchableSelect
-              label="Company city"
-              options={companyCityOptions}
-              values={splitValues(form.companyCities)}
-              onChange={(values) => setStringValues('companyCities', values)}
-              placeholder="Search or type a city..."
-              multiple
-              allowCustom
-              disabled={!companyCountry}
-              helper="Actor field: companyLocationCityIncludes"
-            />
-          </div>
-          <div className="full">
-            <SearchableSelect
-              label="Company industry"
-              options={INDUSTRIES}
-              values={splitValues(form.companyIndustries)}
-              onChange={(values) => setStringValues('companyIndustries', values)}
-              placeholder="Search industries..."
-              multiple
-              helper="Searchable multi-select mapped to companyIndustryIncludes"
-            />
-          </div>
-          <div className="field full">
-            <label>Company size</label>
-            <div className="choice-row">
-              {COMPANY_SIZE_OPTIONS.map((value) => (
-                <button
-                  type="button"
-                  key={value}
-                  onClick={() => toggleArrayValue('companySizes', value)}
-                  className={`choice ${form.companySizes.includes(value) ? 'selected' : ''}`}
-                >
-                  {value}
-                </button>
-              ))}
-            </div>
-            <small>Actor field: companySizeIncludes</small>
-          </div>
+        <div className="form-section full"><span>Delivery</span></div>
+        <div className="field"><label>Delivery email *</label><input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></div>
+        <div className="field"><label>Confirm email *</label><input type="email" value={form.confirmEmail} onChange={(event) => setForm({ ...form, confirmEmail: event.target.value })} />{submitted && !emailsMatch && <small className="error-text">The email addresses must match.</small>}</div>
 
-          <div className="form-section full"><span>Role and contact data</span></div>
-          <div className="full">
-            <SearchableSelect
-              label="Job title"
-              options={JOB_TITLES}
-              values={splitValues(form.jobTitles)}
-              onChange={(values) => setStringValues('jobTitles', values)}
-              placeholder="Search or type a job title..."
-              multiple
-              allowCustom
-              helper="Suggestions plus custom values, mapped to personTitleIncludes"
-            />
-          </div>
-          <div className="field full">
-            <label>Seniority</label>
-            <div className="choice-row">
-              {SENIORITY_OPTIONS.map((value) => (
-                <button
-                  type="button"
-                  key={value}
-                  onClick={() => toggleArrayValue('seniority', value)}
-                  className={`choice ${form.seniority.includes(value) ? 'selected' : ''}`}
-                >
-                  {SENIORITY_LABELS[value]}
-                </button>
-              ))}
-            </div>
-            <small>Uses the actor’s supported seniority values.</small>
-          </div>
-          <div className="field">
-            <label>Email status</label>
-            <select
-              value={form.emailStatus}
-              disabled={form.hasEmail === 'not-required'}
-              onChange={(event) => setForm({ ...form, emailStatus: event.target.value as SearchForm['emailStatus'] })}
-            >
-              <option value="verified">Verified only</option>
-              <option value="unverified">Unverified only</option>
-              <option value="any">Any email status</option>
-            </select>
-          </div>
-          <div className="field">
-            <label>Contact requirements</label>
-            <div style={{ display: 'grid', gap: 10 }}>
-              <Toggle
-                label="Has email"
-                checked={form.hasEmail === 'required'}
-                onChange={(checked) => setForm({ ...form, hasEmail: checked ? 'required' : 'not-required' })}
-              />
-              <Toggle
-                label="Has phone"
-                checked={form.hasPhone === 'required'}
-                onChange={(checked) => setForm({ ...form, hasPhone: checked ? 'required' : 'not-required' })}
-              />
-            </div>
-          </div>
+        <div className="full form-actions"><Link className="btn btn-secondary" href="/dashboard">Save for later</Link>{canReview ? <Link onClick={saveSearch} className="btn btn-primary" href={`/review?order=${order.id}`}>Review search</Link> : <button type="button" onClick={saveSearch} className="btn btn-primary">Review search</button>}</div>
+        <div className="full search-warning" role="note"><strong>Important:</strong> The stricter your search, the lower the chance of reaching your desired target amount. Leadmech will safely broaden optional filters when necessary.</div>
+      </form>
 
-          <div className="form-section full"><span>Result quantity</span></div>
-          <div className="field full">
-            <label>Total results</label>
-            <input
-              type="number"
-              min={1}
-              max={maxResults}
-              value={form.totalResults}
-              onChange={(event) => setForm({ ...form, totalResults: Math.min(Math.max(Number(event.target.value) || 1, 1), maxResults) })}
-            />
-            <input
-              type="range"
-              min={1}
-              max={maxResults}
-              step={Math.max(1, Math.round(maxResults / 100))}
-              value={form.totalResults}
-              onChange={(event) => setForm({ ...form, totalResults: Number(event.target.value) })}
-            />
-            <small>Maximum for this purchase: {maxResults.toLocaleString('en-GB')} leads. Actor maximum per run: 50,000.</small>
-          </div>
-
-          <div className="form-section full"><span>Delivery</span></div>
-          <div className="field">
-            <label>Delivery email *</label>
-            <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
-          </div>
-          <div className="field">
-            <label>Confirm email *</label>
-            <input type="email" value={form.confirmEmail} onChange={(event) => setForm({ ...form, confirmEmail: event.target.value })} />
-            {submitted && !emailsMatch && <small className="error-text">The email addresses must match.</small>}
-          </div>
-
-          <div className="full form-actions">
-            <Link className="btn btn-secondary" href="/dashboard">Save for later</Link>
-            {canReview ? (
-              <Link onClick={saveSearch} className="btn btn-primary" href={`/review?order=${order.id}`}>Review search</Link>
-            ) : (
-              <button type="button" onClick={saveSearch} className="btn btn-primary">Review search</button>
-            )}
-          </div>
-        </form>
-
-        <aside className="card search-summary">
-          <span className="pill">Actor-ready summary</span>
-          <h2>{form.totalResults.toLocaleString('en-GB')} leads</h2>
-          <div className="review-row"><span className="muted">Active filters</span><strong>{activeFilters}</strong></div>
-          <div className="review-row"><span className="muted">Email</span><strong>{form.hasEmail === 'required' ? form.emailStatus : 'Optional'}</strong></div>
-          <div className="review-row"><span className="muted">Phone</span><strong>{form.hasPhone === 'required' ? 'Required' : 'Optional'}</strong></div>
-          <p className="muted summary-note">Only selected filters are sent to Apify. Custom cities and job titles remain supported.</p>
-        </aside>
-      </div>
-    </>
-  );
+      <aside className="card search-summary"><span className="pill">Actor-ready summary</span><h2>{form.totalResults.toLocaleString('en-GB')} leads</h2><div className="review-row"><span className="muted">Active filters</span><strong>{activeFilters}</strong></div><div className="review-row"><span className="muted">Email</span><strong>{form.hasEmail === 'required' ? form.emailStatus : 'Optional'}</strong></div><div className="review-row"><span className="muted">Phone</span><strong>{form.hasPhone === 'required' ? 'Required' : 'Optional'}</strong></div><p className="muted summary-note">Cities are preferences. Leadmech searches them first, then expands to the selected state and other optional filters when needed.</p></aside>
+    </div>
+  </>;
 }
