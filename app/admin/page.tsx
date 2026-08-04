@@ -39,10 +39,13 @@ export default async function Admin() {
     <DashboardShell active="Admin">
       <div className="topbar">
         <div><h1 style={{ margin: 0 }}>Leadmech Admin</h1><p className="muted">Business operations, customer orders, search runs, and files.</p></div>
-        <Link className="btn btn-primary" href="/admin/runs">Open runs</Link>
+        <div className="topbar-actions">
+          <Link className="btn btn-secondary" href="/dashboard">Switch to Customer</Link>
+          <Link className="btn btn-primary" href="/admin/runs">Open runs</Link>
+        </div>
       </div>
       <AdminNav active="Overview" />
-      <div className="dashboard-grid">
+      <div className="dashboard-grid admin-metrics">
         <div className="metric"><span className="muted">Revenue</span><strong>${revenue.toLocaleString('en-US')}</strong></div>
         <div className="metric"><span className="muted">Users</span><strong>{users?.length ?? 0}</strong></div>
         <div className="metric"><span className="muted">Orders</span><strong>{rows.length}</strong></div>
@@ -53,11 +56,11 @@ export default async function Admin() {
       </div>
       <div className="card" style={{ marginTop: 22 }}>
         <h2>Operations</h2>
-        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))' }}>
+        <div className="admin-operation-grid">
           <Link className="card" href="/admin/orders"><strong>Orders</strong><p className="muted">Purchases, payments, status, and customer details.</p></Link>
           <Link className="card" href="/admin/runs"><strong>Search runs</strong><p className="muted">Apify runs, datasets, filters, progress, and errors.</p></Link>
           <Link className="card" href="/admin/users"><strong>Users</strong><p className="muted">Accounts, roles, order totals, and customer activity.</p></Link>
-          <Link className="card" href="/admin/files"><strong>Files</strong><p className="muted">CSV and Excel delivery files with expiry tracking.</p></Link>
+          <Link className="card" href="/admin/files"><strong>Files</strong><p className="muted">CSV and Excel files from every completed client run.</p></Link>
         </div>
       </div>
     </DashboardShell>
