@@ -79,7 +79,7 @@ function mergeUnique(...groups: LeadObject[][]) {
 }
 
 function nextRelaxedInput(current: Record<string, unknown>, remaining: number) {
-  const next = { ...current, totalResults: remaining };
+  const next: Record<string, unknown> = { ...current, totalResults: remaining };
   for (const step of RELAXATION_STEPS) {
     const value = next[step.key];
     const active = Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== '';
