@@ -14,8 +14,7 @@ export default async function Dashboard() {
     .select('role')
     .eq('id', user.id)
     .single();
-
-  if (profile?.role === 'admin') redirect('/admin');
+  const isAdmin = profile?.role === 'admin';
 
   const { data: orders } = await supabase
     .from('orders')
@@ -32,14 +31,17 @@ export default async function Dashboard() {
     <DashboardShell>
       <div className="topbar">
         <div><h1 style={{ margin: 0 }}>Dashboard</h1><p className="muted">Your searches, files, and payment history.</p></div>
-        <Link className="btn btn-primary" href="/#pricing">Buy package</Link>
+        <div className="topbar-actions">
+          {isAdmin && <Link className="btn btn-secondary" href="/admin">Switch to Admin</Link>}
+          <Link className="btn btn-primary" href="/#pricing">Buy package</Link>
+        </div>
       </div>
       <div className="dashboard-grid">
         <div className="metric"><span className="muted">Total orders</span><strong>{rows.length}</strong></div>
         <div className="metric"><span className="muted">Leads purchased</span><strong>{totalLeads.toLocaleString('en-GB')}</strong></div>
         <div className="metric"><span className="muted">Completed files</span><strong>{completedFiles}</strong></div>
       </div>
-      <div className="card" style={{ marginTop: 22 }}>
+      <div className="card dashboard-table-card" style={{ marginTop: 22 }}>
         <h2>Recent orders</h2>
         <div className="table-wrap">
           <table className="table">
@@ -51,7 +53,7 @@ export default async function Dashboard() {
                   <td>{(order.requested_count ?? order.packages?.lead_count ?? 0).toLocaleString('en-GB')}</td>
                   <td><span className={`status ${order.status}`}>{order.status.replaceAll('_', ' ')}</span></td>
                   <td>{new Date(order.created_at).toLocaleDateString('en-GB')}</td>
-                  <td>{order.status === 'completed' ? <><Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=csv`}>CSV</Link> <Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=xlsx`}>Excel</Link></> : order.status === 'no_results' ? <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Adjust filters</Link> : order.status === 'ready_for_search' || order.status === 'paid' ? <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Start</Link> : '-'}</td>
+                  <td><div className="table-actions">{order.status === 'completed' ? <><Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=csv`}>CSV</Link><Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=xlsx`}>Excel</Link></> : order.status === 'no_results' ? <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Adjust filters</Link> : order.status === 'ready_for_search' || order.status === 'paid' ? <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Start</Link> : '-'}</div></td>
                 </tr>
               ))}
               {!rows.length && <tr><td colSpan={5}>No orders yet. Choose a package to begin.</td></tr>}
