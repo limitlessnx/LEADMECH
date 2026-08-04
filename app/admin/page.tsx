@@ -3,17 +3,29 @@ import { DashboardShell } from '@/components/DashboardShell';
 import { AdminNav } from '@/components/AdminNav';
 import { requireAdmin } from '@/lib/admin';
 
+type OverviewOrder = {
+  id: string;
+  status: string;
+  payment_status: string | null;
+  requested_count: number | null;
+  delivered_count: number | null;
+  created_at: string;
+  completed_at: string | null;
+  packages: { price_usd: number | string } | { price_usd: number | string }[] | null;
+};
+
 export default async function Admin() {
   const { admin } = await requireAdmin();
 
-  const [{ data: orders }, { data: users }] = await Promise.all([
+  const [{ data: rawOrders }, { data: users }] = await Promise.all([
     admin.from('orders').select('id,status,payment_status,requested_count,delivered_count,created_at,completed_at,packages(price_usd)'),
     admin.from('profiles').select('id,email,role,created_at'),
   ]);
 
-  const rows = orders ?? [];
+  const rows = (rawOrders ?? []) as unknown as OverviewOrder[];
   const revenue = rows.reduce((sum, order) => {
-    const price = Array.isArray(order.packages) ? order.packages[0]?.price_usd : order.packages?.price_usd;
+    const relation = order.packages;
+    const price = Array.isArray(relation) ? relation[0]?.price_usd : relation?.price_usd;
     return ['paid','ready_for_search','processing','no_results','completed'].includes(order.status)
       ? sum + Number(price ?? 0)
       : sum;
