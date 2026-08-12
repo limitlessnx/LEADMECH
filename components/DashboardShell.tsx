@@ -5,6 +5,7 @@ export function DashboardShell({ children, active = 'Dashboard' }: { children: R
     ['Dashboard', '/dashboard'],
     ['My Leads', '/dashboard/leads'],
     ['New Search', '/search'],
+    ['Support', '/dashboard/support'],
     ['Orders', '/dashboard'],
     ['Saved Templates', '/dashboard'],
     ['Account', '/dashboard'],
