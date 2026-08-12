@@ -235,7 +235,9 @@ export async function POST(request: Request) {
 
   let emailSent = false;
   let emailError: string | null = null;
-  if (process.env.RESEND_API_KEY) {
+  const searchFilters = order.search_filters && typeof order.search_filters === 'object' ? order.search_filters as Record<string, unknown> : {};
+  const shouldSkipEmail = searchFilters._skipCompletionEmail === true;
+  if (!shouldSkipEmail && process.env.RESEND_API_KEY) {
     const [csvLink, xlsxLink] = await Promise.all([
       admin.storage.from('lead-files').createSignedUrl(csvPath, 60 * 60 * 24 * 7),
       admin.storage.from('lead-files').createSignedUrl(xlsxPath, 60 * 60 * 24 * 7),
@@ -247,6 +249,8 @@ export async function POST(request: Request) {
       emailError = error instanceof Error ? error.message : 'Completion email failed.';
       console.error('Leadmech completion email failed', emailError);
     }
+  } else if (shouldSkipEmail) {
+    emailSent = false;
   } else {
     emailError = 'RESEND_API_KEY is not configured.';
   }
