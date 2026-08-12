@@ -37,6 +37,9 @@ export default async function AdminOrderDetail({ params }: { params: Promise<{ i
         <p><strong>Paid:</strong> {order.paid_at ? new Date(order.paid_at).toLocaleString('en-GB') : '-'}</p>
         {order.error_message && <p><strong>Error:</strong> {order.error_message}</p>}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14 }}>
+          <form action={`/api/admin/orders/${order.id}/rerun`} method="post">
+            <button className="btn btn-primary" type="submit">Repair and rerun</button>
+          </form>
           {order.apify_run_id && <Link className="btn btn-primary" href={`/admin/runs/${order.id}`}>Inspect run</Link>}
           {order.csv_path && <Link className="btn btn-secondary" href={`/api/admin/orders/${order.id}/download?format=csv`}>Download CSV</Link>}
           {order.xlsx_path && <Link className="btn btn-secondary" href={`/api/admin/orders/${order.id}/download?format=xlsx`}>Download Excel</Link>}
