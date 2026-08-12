@@ -41,15 +41,23 @@ export default async function MyLeadsPage() {
               {rows.map((order) => {
                 const completedAt = order.completed_at ? new Date(order.completed_at) : new Date(order.created_at);
                 const expiresAt = new Date(completedAt.getTime() + FILE_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+                const requested = Number(order.requested_count ?? order.packages?.lead_count ?? 0);
+                const delivered = Number(order.delivered_count || 0);
+                const canSearchAgain = requested > 0 && delivered < requested;
                 return (
                   <tr key={order.id}>
                     <td><strong>{order.order_code}</strong></td>
-                    <td>{Number(order.delivered_count || 0).toLocaleString('en-GB')}</td>
+                    <td>{delivered.toLocaleString('en-GB')} / {requested.toLocaleString('en-GB')}</td>
                     <td>{completedAt.toLocaleDateString('en-GB')}</td>
                     <td>{expiresAt.toLocaleDateString('en-GB')}</td>
                     <td>
                       {order.csv_path && <Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=csv`}>CSV</Link>}{' '}
                       {order.xlsx_path && <Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=xlsx`}>Excel</Link>}
+                      {canSearchAgain && (
+                        <form action={`/api/orders/${order.id}/rerun`} method="post" style={{ display: 'inline-flex', marginLeft: 8 }}>
+                          <button className="btn btn-primary" type="submit">Search again</button>
+                        </form>
+                      )}
                     </td>
                   </tr>
                 );
