@@ -41,7 +41,8 @@ export default async function MyLeadsPage() {
               {rows.map((order) => {
                 const completedAt = order.completed_at ? new Date(order.completed_at) : new Date(order.created_at);
                 const expiresAt = new Date(completedAt.getTime() + FILE_RETENTION_DAYS * 24 * 60 * 60 * 1000);
-                const requested = Number(order.requested_count ?? order.packages?.lead_count ?? 0);
+                const packageInfo = Array.isArray(order.packages) ? order.packages[0] : order.packages;
+                const requested = Number(order.requested_count ?? packageInfo?.lead_count ?? 0);
                 const delivered = Number(order.delivered_count || 0);
                 const canSearchAgain = requested > 0 && delivered < requested;
                 return (
