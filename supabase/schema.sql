@@ -58,6 +58,17 @@ create table if not exists public.saved_templates (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.support_messages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  order_id uuid references public.orders(id) on delete set null,
+  sender_role text not null check (sender_role in ('customer','admin')),
+  body text not null check (length(trim(body)) > 0 and length(body) <= 5000),
+  read_by_customer boolean not null default false,
+  read_by_admin boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
 insert into public.packages(name,lead_count,price_usd,active)
 values ('Starter',10000,30,true),('Growth',25000,75,true),('Scale',50000,145,true)
 on conflict (name) do update set lead_count=excluded.lead_count,price_usd=excluded.price_usd,active=true;
@@ -68,6 +79,8 @@ create index if not exists orders_status_idx on public.orders(status);
 create index if not exists orders_payment_id_idx on public.orders(payment_id);
 create index if not exists orders_apify_run_id_idx on public.orders(apify_run_id);
 create index if not exists saved_templates_user_id_idx on public.saved_templates(user_id);
+create index if not exists support_messages_user_created_idx on public.support_messages(user_id,created_at desc);
+create index if not exists support_messages_order_id_idx on public.support_messages(order_id);
 
 create or replace function public.set_updated_at()
 returns trigger language plpgsql security invoker set search_path=public as $$
@@ -98,6 +111,7 @@ alter table public.profiles enable row level security;
 alter table public.packages enable row level security;
 alter table public.orders enable row level security;
 alter table public.saved_templates enable row level security;
+alter table public.support_messages enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own" on public.profiles for select to authenticated using ((select auth.uid())=id);
@@ -120,6 +134,22 @@ drop policy if exists "templates_update_own" on public.saved_templates;
 create policy "templates_update_own" on public.saved_templates for update to authenticated using ((select auth.uid())=user_id) with check ((select auth.uid())=user_id);
 drop policy if exists "templates_delete_own" on public.saved_templates;
 create policy "templates_delete_own" on public.saved_templates for delete to authenticated using ((select auth.uid())=user_id);
+
+drop policy if exists "support_select_own" on public.support_messages;
+create policy "support_select_own" on public.support_messages for select to authenticated using ((select auth.uid())=user_id);
+drop policy if exists "support_insert_customer_own" on public.support_messages;
+create policy "support_insert_customer_own" on public.support_messages for insert to authenticated with check (
+  (select auth.uid())=user_id
+  and sender_role='customer'
+  and (
+    order_id is null
+    or exists (
+      select 1 from public.orders
+      where orders.id=support_messages.order_id
+      and orders.user_id=(select auth.uid())
+    )
+  )
+);
 
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
 values ('lead-files','lead-files',false,52428800,array['text/csv','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
