@@ -6,6 +6,7 @@ const items = [
   ['Runs', '/admin/runs'],
   ['Users', '/admin/users'],
   ['Files', '/admin/files'],
+  ['Support', '/admin/support'],
 ];
 
 export function AdminNav({ active }: { active: string }) {
