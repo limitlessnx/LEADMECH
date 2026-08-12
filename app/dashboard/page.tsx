@@ -47,15 +47,33 @@ export default async function Dashboard() {
           <table className="table">
             <thead><tr><th>Order</th><th>Package</th><th>Status</th><th>Date</th><th>Files / action</th></tr></thead>
             <tbody>
-              {rows.map((order) => (
-                <tr key={order.id}>
-                  <td>{order.order_code}</td>
-                  <td>{(order.requested_count ?? order.packages?.lead_count ?? 0).toLocaleString('en-GB')}</td>
-                  <td><span className={`status ${order.status}`}>{order.status.replaceAll('_', ' ')}</span></td>
-                  <td>{new Date(order.created_at).toLocaleDateString('en-GB')}</td>
-                  <td><div className="table-actions">{order.status === 'completed' ? <><Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=csv`}>CSV</Link><Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=xlsx`}>Excel</Link></> : order.status === 'no_results' ? <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Adjust filters</Link> : order.status === 'ready_for_search' || order.status === 'paid' ? <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Start</Link> : '-'}</div></td>
-                </tr>
-              ))}
+              {rows.map((order) => {
+                const requested = order.requested_count ?? order.packages?.lead_count ?? 0;
+                const delivered = order.delivered_count ?? 0;
+                const canSearchAgain = requested > 0 && delivered < requested && ['completed', 'failed', 'no_results'].includes(order.status);
+                return (
+                  <tr key={order.id}>
+                    <td>{order.order_code}</td>
+                    <td>{requested.toLocaleString('en-GB')}</td>
+                    <td><span className={`status ${order.status}`}>{order.status.replaceAll('_', ' ')}</span></td>
+                    <td>{new Date(order.created_at).toLocaleDateString('en-GB')}</td>
+                    <td>
+                      <div className="table-actions">
+                        {order.csv_path && <Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=csv`}>CSV</Link>}
+                        {order.xlsx_path && <Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=xlsx`}>Excel</Link>}
+                        {canSearchAgain && (
+                          <form action={`/api/orders/${order.id}/rerun`} method="post">
+                            <button className="btn btn-primary" type="submit">Search again</button>
+                          </form>
+                        )}
+                        {order.status === 'no_results' && <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Adjust filters</Link>}
+                        {(order.status === 'ready_for_search' || order.status === 'paid') && <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Start</Link>}
+                        {!order.csv_path && !order.xlsx_path && !canSearchAgain && !['no_results', 'ready_for_search', 'paid'].includes(order.status) && '-'}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
               {!rows.length && <tr><td colSpan={5}>No orders yet. Choose a package to begin.</td></tr>}
             </tbody>
           </table>
