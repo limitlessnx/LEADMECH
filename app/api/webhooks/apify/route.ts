@@ -26,6 +26,7 @@ const RELAXATION_STEPS = [
   { key: 'emailStatusIncludes', label: 'strict email status' },
   { key: 'emailStatusExcludes', label: 'strict email exclusion' },
   { key: 'hasPhone', label: 'phone requirement' },
+  { key: 'hasEmail', label: 'email requirement' },
 ] as const;
 
 function isLeadRecord(value: unknown): value is LeadObject {
