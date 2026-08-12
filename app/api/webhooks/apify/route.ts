@@ -14,16 +14,18 @@ type ApifyEvent = {
 type LeadObject = Record<string, unknown>;
 
 const RELAXATION_STEPS = [
-  { key: 'companyIndustryIncludes', label: 'company industry' },
   { key: 'companyLocationCityIncludes', label: 'company city' },
-  { key: 'companyLocationStateIncludes', label: 'company state' },
   { key: 'personLocationCityIncludes', label: 'person city' },
+  { key: 'companyLocationStateIncludes', label: 'company state' },
   { key: 'personLocationStateIncludes', label: 'person state' },
+  { key: 'companyLocationCountryIncludes', label: 'company country' },
+  { key: 'personLocationCountryIncludes', label: 'person country' },
   { key: 'companySizeIncludes', label: 'company size' },
   { key: 'seniorityIncludes', label: 'seniority' },
+  { key: 'personTitleIncludes', label: 'exact job title' },
   { key: 'emailStatusIncludes', label: 'strict email status' },
   { key: 'emailStatusExcludes', label: 'strict email exclusion' },
-  { key: 'personTitleIncludes', label: 'exact job title' },
+  { key: 'hasPhone', label: 'phone requirement' },
 ] as const;
 
 function isLeadRecord(value: unknown): value is LeadObject {
@@ -82,7 +84,11 @@ function nextRelaxedInput(current: Record<string, unknown>, remaining: number) {
   const next: Record<string, unknown> = { ...current, totalResults: remaining };
   for (const step of RELAXATION_STEPS) {
     const value = next[step.key];
-    const active = Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && value !== '';
+    const active = Array.isArray(value)
+      ? value.length > 0
+      : typeof value === 'boolean'
+      ? value
+      : value !== undefined && value !== null && value !== '';
     if (active) {
       delete next[step.key];
       if (step.key === 'emailStatusIncludes') delete next.emailStatusExcludes;
