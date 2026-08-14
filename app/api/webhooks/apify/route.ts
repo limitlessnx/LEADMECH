@@ -5,36 +5,15 @@ import { sendCompletionEmail } from '@/lib/email';
 import { rowsToCsv, rowsToXlsx } from '@/lib/export-files';
 import { getSiteUrl } from '@/lib/site';
 
-type ApifyEvent = {
-  orderId?: string;
-  eventType?: string;
-  resource?: { id?: string; status?: string; defaultDatasetId?: string };
-};
-
+type ApifyEvent = { orderId?: string; eventType?: string; resource?: { id?: string; status?: string; defaultDatasetId?: string } };
 type LeadObject = Record<string, unknown>;
-
-const RELAXATION_STEPS = [
-  { key: 'companyLocationCityIncludes', label: 'company city' },
-  { key: 'personLocationCityIncludes', label: 'person city' },
-  { key: 'companyLocationStateIncludes', label: 'company state' },
-  { key: 'personLocationStateIncludes', label: 'person state' },
-  { key: 'companyLocationCountryIncludes', label: 'company country' },
-  { key: 'personLocationCountryIncludes', label: 'person country' },
-  { key: 'companySizeIncludes', label: 'company size' },
-  { key: 'seniorityIncludes', label: 'seniority' },
-  { key: 'personTitleIncludes', label: 'exact job title' },
-  { key: 'emailStatusIncludes', label: 'strict email status' },
-  { key: 'emailStatusExcludes', label: 'strict email exclusion' },
-  { key: 'hasPhone', label: 'phone requirement' },
-  { key: 'hasEmail', label: 'email requirement' },
-] as const;
 
 function isLeadRecord(value: unknown): value is LeadObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const row = value as LeadObject;
   if (row.recordType === 'diagnostic' || row.rowType === 'diagnostic' || row.status === 'no_results') return false;
-  const identityFields = [row.email, row.fullName, row.firstName, row.lastName, row.linkedinUrl, row.companyName, row.companyDomain];
-  return identityFields.some((field) => typeof field === 'string' && field.trim().length > 0);
+  return [row.email, row.fullName, row.firstName, row.lastName, row.linkedinUrl, row.companyName, row.companyDomain]
+    .some((field) => typeof field === 'string' && field.trim().length > 0);
 }
 
 function allDatasetObjects(value: unknown): LeadObject[] {
@@ -47,10 +26,7 @@ function allDatasetObjects(value: unknown): LeadObject[] {
   return [object];
 }
 
-function extractDatasetRows(value: unknown) {
-  return allDatasetObjects(value).filter(isLeadRecord);
-}
-
+function extractDatasetRows(value: unknown) { return allDatasetObjects(value).filter(isLeadRecord); }
 function diagnosticMessage(value: unknown) {
   const diagnostic = allDatasetObjects(value).find((row) => row.recordType === 'diagnostic' || row.rowType === 'diagnostic' || row.status === 'no_results');
   if (!diagnostic) return null;
@@ -58,7 +34,6 @@ function diagnosticMessage(value: unknown) {
   const suggestion = typeof diagnostic['b - topSuggestion'] === 'string' ? diagnostic['b - topSuggestion'] : '';
   return [why, suggestion].filter(Boolean).join(' ');
 }
-
 function leadKey(row: LeadObject) {
   const email = String(row.email ?? '').trim().toLowerCase();
   if (email) return `email:${email}`;
@@ -68,38 +43,11 @@ function leadKey(row: LeadObject) {
   const company = String(row.companyDomain ?? row.companyName ?? '').trim().toLowerCase();
   return `fallback:${name}|${company}`;
 }
-
 function mergeUnique(...groups: LeadObject[][]) {
-  const seen = new Set<string>();
-  const merged: LeadObject[] = [];
-  for (const row of groups.flat()) {
-    const key = leadKey(row);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    merged.push(row);
-  }
+  const seen = new Set<string>(); const merged: LeadObject[] = [];
+  for (const row of groups.flat()) { const key = leadKey(row); if (!key || seen.has(key)) continue; seen.add(key); merged.push(row); }
   return merged;
 }
-
-function nextRelaxedInput(current: Record<string, unknown>, remaining: number) {
-  const next: Record<string, unknown> = { ...current, totalResults: remaining };
-  for (const step of RELAXATION_STEPS) {
-    const value = next[step.key];
-    const active = Array.isArray(value)
-      ? value.length > 0
-      : typeof value === 'boolean'
-      ? value
-      : value !== undefined && value !== null && value !== '';
-    if (active) {
-      delete next[step.key];
-      if (step.key === 'emailStatusIncludes') delete next.emailStatusExcludes;
-      if (step.key === 'emailStatusExcludes') delete next.emailStatusIncludes;
-      return { input: next, removed: step.label };
-    }
-  }
-  return null;
-}
-
 function actorWebhooks(orderId: string) {
   const secret = process.env.APIFY_WEBHOOK_SECRET;
   const requestUrl = `${getSiteUrl()}/api/webhooks/apify${secret ? `?secret=${encodeURIComponent(secret)}` : ''}`;
@@ -111,27 +59,10 @@ function actorWebhooks(orderId: string) {
   }])).toString('base64');
 }
 
-async function startExpandedRun(orderId: string, input: Record<string, unknown>, token: string) {
-  const actorId = process.env.APIFY_ACTOR_ID;
-  if (!actorId) throw new Error('Apify actor is not configured.');
-  const webhooks = actorWebhooks(orderId);
-  const response = await fetch(`https://api.apify.com/v2/actors/${actorId}/runs?waitForFinish=0&webhooks=${encodeURIComponent(webhooks)}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    body: JSON.stringify(input),
-    cache: 'no-store',
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data?.data?.id) throw new Error(data?.error?.message || data?.message || 'Unable to start expanded Apify search.');
-  return data.data as { id: string; defaultDatasetId?: string };
-}
-
 export async function POST(request: Request) {
   const url = new URL(request.url);
   const configuredSecret = process.env.APIFY_WEBHOOK_SECRET;
-  if (configuredSecret && url.searchParams.get('secret') !== configuredSecret) {
-    return NextResponse.json({ error: 'Invalid webhook secret' }, { status: 401 });
-  }
+  if (configuredSecret && url.searchParams.get('secret') !== configuredSecret) return NextResponse.json({ error: 'Invalid webhook secret' }, { status: 401 });
 
   const event = await request.json() as ApifyEvent;
   const admin = createAdminClient();
@@ -140,27 +71,28 @@ export async function POST(request: Request) {
   const datasetId = event.resource?.defaultDatasetId;
   const status = event.resource?.status || event.eventType || 'UNKNOWN';
 
-  const orderQuery = admin.from('orders').select('id,user_id,order_code,requested_count,delivery_email,apify_run_id,apify_input,search_filters').limit(1);
-  const { data: orders, error: orderError } = orderId
-    ? await orderQuery.eq('id', orderId)
-    : await orderQuery.eq('apify_run_id', runId ?? '');
+  const orderQuery = admin.from('orders').select('id,user_id,order_code,status,payment_status,requested_count,original_requested_count,remaining_leads,delivered_count,delivery_email,apify_run_id,apify_input,search_filters').limit(1);
+  const { data: orders, error: orderError } = orderId ? await orderQuery.eq('id', orderId) : await orderQuery.eq('apify_run_id', runId ?? '');
   const order = orders?.[0];
   if (orderError || !order) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
 
+  // Ignore stale/duplicate callbacks from an older run. The current run is the only run allowed to mutate the order.
+  if (runId && order.apify_run_id && order.apify_run_id !== runId) return NextResponse.json({ ok: true, ignored: true, reason: 'stale_run' });
+
   if (!status.includes('SUCCEEDED') && status !== 'SUCCEEDED') {
-    await admin.from('orders').update({ status: 'failed', error_message: `Apify run ended as ${status}` }).eq('id', order.id);
+    await admin.from('search_attempts').update({ status: 'failed', error_message: `Apify run ended as ${status}`, completed_at: new Date().toISOString() }).eq('order_id', order.id).eq('apify_run_id', runId ?? '');
+    await admin.from('orders').update({ status: 'ready_for_search', error_message: `Search attempt failed: ${status}. You may use another attempt if available.` }).eq('id', order.id).eq('status', 'processing');
     return NextResponse.json({ ok: true, status });
   }
   if (!datasetId) return NextResponse.json({ error: 'Missing dataset ID' }, { status: 400 });
 
   const token = process.env.APIFY_API_TOKEN;
   if (!token) return NextResponse.json({ error: 'Apify token is not configured' }, { status: 500 });
-  const limit = order.requested_count ?? 50000;
-  const res = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?clean=true&format=json&limit=${limit}`, {
-    headers: { authorization: `Bearer ${token}` }, cache: 'no-store',
-  });
+  const limit = order.requested_count ?? order.remaining_leads ?? order.original_requested_count ?? 50000;
+  const res = await fetch(`https://api.apify.com/v2/datasets/${datasetId}/items?clean=true&format=json&limit=${limit}`, { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
   if (!res.ok) {
-    await admin.from('orders').update({ status: 'failed', error_message: 'Unable to download Apify dataset.' }).eq('id', order.id);
+    await admin.from('search_attempts').update({ status: 'failed', error_message: 'Unable to download Apify dataset.', completed_at: new Date().toISOString() }).eq('order_id', order.id).eq('apify_run_id', runId ?? '');
+    await admin.from('orders').update({ status: 'ready_for_search', error_message: 'Unable to download the search result. Your attempt remains counted; use another attempt if available.' }).eq('id', order.id).eq('status', 'processing');
     return NextResponse.json({ error: 'Unable to download dataset' }, { status: 502 });
   }
 
@@ -174,70 +106,35 @@ export async function POST(request: Request) {
     try { previousRows = JSON.parse(await previousDownload.data.text()) as LeadObject[]; } catch { previousRows = []; }
   }
 
-  const merged = mergeUnique(previousRows, currentRows).slice(0, limit);
-  const remaining = Math.max(limit - merged.length, 0);
-  const currentInput = (order.apify_input && typeof order.apify_input === 'object' ? order.apify_input : {}) as Record<string, unknown>;
-  const relaxed = remaining > 0 ? nextRelaxedInput(currentInput, remaining) : null;
-
-  if (remaining > 0 && relaxed) {
-    await admin.storage.from('lead-files').upload(partialPath, Buffer.from(JSON.stringify(merged)), {
-      contentType: 'application/json', upsert: true,
-    });
-    try {
-      const run = await startExpandedRun(order.id, relaxed.input, token);
-      const filters = order.search_filters && typeof order.search_filters === 'object' ? order.search_filters as Record<string, unknown> : {};
-      const removed = Array.isArray(filters._expandedFilters) ? filters._expandedFilters : [];
-      await admin.from('orders').update({
-        status: 'processing',
-        delivered_count: merged.length,
-        apify_run_id: run.id,
-        apify_dataset_id: run.defaultDatasetId ?? null,
-        apify_input: relaxed.input,
-        search_filters: { ...filters, _expandedFilters: [...removed, relaxed.removed] },
-        error_message: `Found ${merged.length.toLocaleString('en-US')} of ${limit.toLocaleString('en-US')} leads. Expanding beyond ${relaxed.removed} to complete the order.`,
-      }).eq('id', order.id);
-      return NextResponse.json({ ok: true, status: 'expanding', rows: merged.length, remaining, removedFilter: relaxed.removed });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to continue expanded search.';
-      await admin.from('orders').update({ status: 'failed', delivered_count: merged.length, error_message: message }).eq('id', order.id);
-      return NextResponse.json({ error: message }, { status: 502 });
-    }
-  }
-
-  if (merged.length === 0) {
-    const message = diagnosticMessage(raw) || 'No leads matched even after the available filters were broadened.';
-    await admin.from('orders').update({
-      status: 'no_results', delivered_count: 0, apify_dataset_id: datasetId,
-      csv_path: null, xlsx_path: null, completed_at: null, error_message: message,
-    }).eq('id', order.id);
-    await admin.storage.from('lead-files').remove([partialPath]);
-    return NextResponse.json({ ok: false, status: 'no_results', rows: 0, error: message });
-  }
-
-  const finalLeadObjects = merged.slice(0, limit);
-  const rows = finalLeadObjects.map(cleanLead);
+  const purchased = order.original_requested_count ?? order.requested_count ?? 0;
+  const merged = mergeUnique(previousRows, currentRows).slice(0, purchased);
+  const remaining = Math.max(purchased - merged.length, 0);
+  const rows = merged.map(cleanLead);
   const csvPath = `${basePath}/leads.csv`;
   const xlsxPath = `${basePath}/leads.xlsx`;
   const csvUpload = await admin.storage.from('lead-files').upload(csvPath, Buffer.from(rowsToCsv(rows)), { contentType: 'text/csv', upsert: true });
   const xlsxUpload = await admin.storage.from('lead-files').upload(xlsxPath, rowsToXlsx(rows), { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', upsert: true });
   if (csvUpload.error || xlsxUpload.error) {
     const message = csvUpload.error?.message || xlsxUpload.error?.message || 'Storage upload failed.';
-    await admin.from('orders').update({ status: 'failed', error_message: message }).eq('id', order.id);
+    await admin.from('search_attempts').update({ status: 'failed', returned_count: currentRows.length, error_message: message, completed_at: new Date().toISOString() }).eq('order_id', order.id).eq('apify_run_id', runId ?? '');
+    await admin.from('orders').update({ status: 'ready_for_search', delivered_count: merged.length, remaining_leads: remaining, csv_path: rows.length ? csvPath : null, xlsx_path: rows.length ? xlsxPath : null, error_message: message }).eq('id', order.id).eq('status', 'processing');
     return NextResponse.json({ error: 'Unable to upload lead files' }, { status: 500 });
   }
 
-  await admin.storage.from('lead-files').remove([partialPath]);
-  const shortfall = rows.length < limit ? ` Delivered ${rows.length.toLocaleString('en-US')} unique leads after all safe expansion stages.` : null;
-  await admin.from('orders').update({
-    status: 'completed', apify_dataset_id: datasetId, delivered_count: rows.length,
-    csv_path: csvPath, xlsx_path: xlsxPath, completed_at: new Date().toISOString(), error_message: shortfall,
-  }).eq('id', order.id);
+  await admin.storage.from('lead-files').upload(partialPath, Buffer.from(JSON.stringify(merged)), { contentType: 'application/json', upsert: true });
+  await admin.from('search_attempts').update({ status: remaining > 0 ? 'completed_partial' : 'completed', returned_count: currentRows.length, apify_dataset_id: datasetId, completed_at: new Date().toISOString() }).eq('order_id', order.id).eq('apify_run_id', runId ?? '');
 
-  let emailSent = false;
-  let emailError: string | null = null;
-  const searchFilters = order.search_filters && typeof order.search_filters === 'object' ? order.search_filters as Record<string, unknown> : {};
-  const shouldSkipEmail = searchFilters._skipCompletionEmail === true;
-  if (!shouldSkipEmail && process.env.RESEND_API_KEY) {
+  if (remaining > 0) {
+    // IMPORTANT: do not automatically launch another Apify run. The customer gets exactly three total attempts.
+    await admin.from('orders').update({ status: 'ready_for_search', delivered_count: merged.length, remaining_leads: remaining, requested_count: remaining, apify_dataset_id: datasetId, csv_path: csvPath, xlsx_path: xlsxPath, completed_at: new Date().toISOString(), error_message: `${merged.length.toLocaleString('en-US')} of ${purchased.toLocaleString('en-US')} leads found. ${remaining.toLocaleString('en-US')} leads remain locked for your next search attempt.` }).eq('id', order.id).eq('status', 'processing');
+    return NextResponse.json({ ok: true, status: 'partial', delivered: merged.length, remaining, attemptsRemaining: Math.max((order.max_customer_attempts ?? 3) - 1, 0) });
+  }
+
+  await admin.storage.from('lead-files').remove([partialPath]);
+  await admin.from('orders').update({ status: 'completed', delivered_count: rows.length, remaining_leads: 0, requested_count: 0, apify_dataset_id: datasetId, csv_path: csvPath, xlsx_path: xlsxPath, completed_at: new Date().toISOString(), error_message: null }).eq('id', order.id).eq('status', 'processing');
+
+  let emailSent = false; let emailError: string | null = null;
+  if (process.env.RESEND_API_KEY) {
     const [csvLink, xlsxLink] = await Promise.all([
       admin.storage.from('lead-files').createSignedUrl(csvPath, 60 * 60 * 24 * 7),
       admin.storage.from('lead-files').createSignedUrl(xlsxPath, 60 * 60 * 24 * 7),
@@ -245,15 +142,8 @@ export async function POST(request: Request) {
     try {
       await sendCompletionEmail({ to: order.delivery_email, orderCode: order.order_code, deliveredCount: rows.length, csvUrl: csvLink.data?.signedUrl, xlsxUrl: xlsxLink.data?.signedUrl });
       emailSent = true;
-    } catch (error) {
-      emailError = error instanceof Error ? error.message : 'Completion email failed.';
-      console.error('Leadmech completion email failed', emailError);
-    }
-  } else if (shouldSkipEmail) {
-    emailSent = false;
-  } else {
-    emailError = 'RESEND_API_KEY is not configured.';
-  }
+    } catch (error) { emailError = error instanceof Error ? error.message : 'Completion email failed.'; }
+  } else emailError = 'RESEND_API_KEY is not configured.';
 
-  return NextResponse.json({ ok: true, rows: rows.length, requested: limit, emailSent, emailError, shortfall });
+  return NextResponse.json({ ok: true, status: 'completed', delivered: rows.length, remaining: 0, emailSent, emailError });
 }
