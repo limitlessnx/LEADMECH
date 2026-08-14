@@ -52,7 +52,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .single<RerunOrder>();
 
   if (orderError || !order || order.user_id !== user.id) return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
-  if (!['completed', 'failed', 'no_results'].includes(order.status)) return NextResponse.json({ error: 'This order cannot be searched again right now.' }, { status: 409 });
+
+  // Customer retries are deliberately allowed only after a completed/empty search.
+  // A failed Apify run is a provider/system failure and must never be retried by the
+  // customer, otherwise the same paid order can repeatedly consume Apify credits.
+  if (!['completed', 'no_results'].includes(order.status)) {
+    return NextResponse.json({ error: 'This order is not eligible for a customer retry. Failed searches must be reviewed by support.' }, { status: 409 });
+  }
   if (!SUCCESSFUL_PAYMENT_STATUSES.has(order.payment_status ?? '')) return NextResponse.json({ error: 'This order has not been paid.' }, { status: 402 });
 
   const packageInfo = Array.isArray(order.packages) ? order.packages[0] : order.packages;
