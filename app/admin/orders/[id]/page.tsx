@@ -43,6 +43,10 @@ export default async function AdminOrderDetail({ params }: { params: Promise<{ i
           {order.apify_run_id && <Link className="btn btn-primary" href={`/admin/runs/${order.id}`}>Inspect run</Link>}
           {order.csv_path && <Link className="btn btn-secondary" href={`/api/admin/orders/${order.id}/download?format=csv`}>Download CSV</Link>}
           {order.xlsx_path && <Link className="btn btn-secondary" href={`/api/admin/orders/${order.id}/download?format=xlsx`}>Download Excel</Link>}
+          {order.apify_dataset_id && <>
+            <Link className="btn btn-secondary" href={`/api/admin/orders/${order.id}/searched-leads?format=csv`}>Download searched CSV</Link>
+            <Link className="btn btn-secondary" href={`/api/admin/orders/${order.id}/searched-leads?format=xlsx`}>Download searched Excel</Link>
+          </>}
         </div>
       </div>
       <div className="card" style={{ marginTop: 18 }}><h2>Search filters</h2><pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{JSON.stringify(order.search_filters ?? {}, null, 2)}</pre></div>
