@@ -50,7 +50,11 @@ export default async function Dashboard() {
               {rows.map((order) => {
                 const requested = order.requested_count ?? order.packages?.lead_count ?? 0;
                 const delivered = order.delivered_count ?? 0;
-                const canSearchAgain = requested > 0 && delivered < requested && ['completed', 'failed', 'no_results'].includes(order.status);
+                // Customer retries are intentionally limited to searches that completed with
+                // an incomplete/empty result. A failed Apify run must never expose a retry
+                // button because it can repeatedly consume provider credits without producing
+                // a valid fulfillment event.
+                const canSearchAgain = requested > 0 && delivered < requested && ['completed', 'no_results'].includes(order.status);
                 return (
                   <tr key={order.id}>
                     <td>{order.order_code}</td>
@@ -63,12 +67,13 @@ export default async function Dashboard() {
                         {order.xlsx_path && <Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=xlsx`}>Excel</Link>}
                         {canSearchAgain && (
                           <form action={`/api/orders/${order.id}/rerun`} method="post">
-                            <button className="btn btn-primary" type="submit">Search again</button>
+                            <button className="btn btn-primary" type="submit">Search remaining leads</button>
                           </form>
                         )}
                         {order.status === 'no_results' && <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Adjust filters</Link>}
                         {(order.status === 'ready_for_search' || order.status === 'paid') && <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Start</Link>}
-                        {!order.csv_path && !order.xlsx_path && !canSearchAgain && !['no_results', 'ready_for_search', 'paid'].includes(order.status) && '-'}
+                        {order.status === 'failed' && <span className="muted">Search failed. Contact support.</span>}
+                        {!order.csv_path && !order.xlsx_path && !canSearchAgain && !['no_results', 'ready_for_search', 'paid', 'failed'].includes(order.status) && '-'}
                       </div>
                     </td>
                   </tr>
