@@ -4,17 +4,13 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { getSiteUrl, requireEnv } from '@/lib/site';
 import { getPackage } from '@/lib/packages';
 
-const TEST_COUPON_CODE = 'LEADMECHDEV100';
-const TEST_COUPON_STATUS = 'coupon_LEADMECHDEV100';
-
 export async function POST(request: Request) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user?.email) return NextResponse.json({ error: 'Please sign in before checkout.' }, { status: 401 });
 
-  const { packageId, couponCode } = await request.json();
+  const { packageId } = await request.json();
   const selectedPackage = getPackage(packageId);
-  const normalizedCoupon = String(couponCode || '').trim().toUpperCase();
   const admin = createAdminClient();
   const { data: packageRow, error: packageError } = await admin
     .from('packages')
@@ -25,11 +21,8 @@ export async function POST(request: Request) {
 
   if (packageError || !packageRow) return NextResponse.json({ error: 'Package is not available.' }, { status: 400 });
 
-  if (normalizedCoupon && normalizedCoupon !== TEST_COUPON_CODE) {
-    return NextResponse.json({ error: 'Invalid coupon code.' }, { status: 400 });
-  }
-
-  const isTestCoupon = normalizedCoupon === TEST_COUPON_CODE;
+  // Every customer order starts unpaid. Search access is granted only after the
+  // signed NOWPayments webhook records a fully confirmed payment.
   const { data: order, error: orderError } = await admin
     .from('orders')
     .insert({
@@ -37,9 +30,9 @@ export async function POST(request: Request) {
       package_id: packageRow.id,
       requested_count: packageRow.lead_count,
       delivery_email: user.email,
-      status: isTestCoupon ? 'ready_for_search' : 'awaiting_payment',
-      payment_status: isTestCoupon ? TEST_COUPON_STATUS : null,
-      paid_at: isTestCoupon ? new Date().toISOString() : null,
+      status: 'awaiting_payment',
+      payment_status: 'invoice_created',
+      paid_at: null,
     })
     .select('id,order_code')
     .single();
@@ -47,15 +40,6 @@ export async function POST(request: Request) {
   if (orderError || !order) return NextResponse.json({ error: 'Unable to create order.' }, { status: 500 });
 
   const siteUrl = getSiteUrl();
-
-  if (isTestCoupon) {
-    return NextResponse.json({
-      orderId: order.id,
-      orderCode: order.order_code,
-      couponApplied: true,
-      successPath: `/search?order=${order.id}`,
-    });
-  }
 
   let apiKey: string;
   try {
@@ -90,7 +74,8 @@ export async function POST(request: Request) {
   await admin
     .from('orders')
     .update({ payment_id: String(paymentData.id), payment_status: 'invoice_created' })
-    .eq('id', order.id);
+    .eq('id', order.id)
+    .eq('status', 'awaiting_payment');
 
   return NextResponse.json({ orderId: order.id, orderCode: order.order_code, invoiceUrl: paymentData.invoice_url });
 }
