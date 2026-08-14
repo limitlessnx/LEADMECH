@@ -9,6 +9,7 @@ type StartOrder = {
   order_code: string;
   user_id: string;
   status: string;
+  payment_status: string | null;
   requested_count: number | null;
   packages: { name: string; lead_count: number; price_usd: number } | { name: string; lead_count: number; price_usd: number }[] | null;
 };
@@ -57,6 +58,8 @@ function validateLocation(search: Record<string, unknown>) {
   return null;
 }
 
+const SUCCESSFUL_PAYMENT_STATUSES = new Set(['finished', 'confirmed']);
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createServerSupabase();
@@ -76,15 +79,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const admin = createAdminClient();
   const { data: order, error: orderError } = await admin
     .from('orders')
-    .select('id,order_code,user_id,status,requested_count,packages(name,lead_count,price_usd)')
+    .select('id,order_code,user_id,status,payment_status,requested_count,packages(name,lead_count,price_usd)')
     .eq('id', id)
     .single<StartOrder>();
 
   if (orderError || !order || order.user_id !== user.id) {
     return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
   }
-  if (!['paid', 'ready_for_search', 'no_results'].includes(order.status)) {
-    return NextResponse.json({ error: 'This order is not ready for search.' }, { status: 409 });
+
+  // Only a signed NOWPayments webhook can establish a successful payment.
+  // Never trust order.status alone, and never treat partial/pending invoices as paid.
+  if (!SUCCESSFUL_PAYMENT_STATUSES.has(order.payment_status ?? '')) {
+    return NextResponse.json({ error: 'Payment has not been confirmed. Complete payment before starting your lead search.' }, { status: 402 });
+  }
+
+  // Customer searches are single-use. Any exceptional retry must be explicitly
+  // unlocked by the server/admin rather than by changing the client request.
+  if (!['paid', 'ready_for_search'].includes(order.status)) {
+    return NextResponse.json({ error: 'This order is not available for a new search.' }, { status: 409 });
   }
 
   const actorId = process.env.APIFY_ACTOR_ID;
@@ -110,19 +122,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     shouldInterpolateStrings: true,
   }])).toString('base64');
 
-  await admin.from('orders').update({
-    status: 'processing',
-    requested_count: leadCount,
-    delivery_email: deliveryEmail,
-    search_filters: search ?? {},
-    apify_input: actorInput,
-    started_at: new Date().toISOString(),
-    completed_at: null,
-    delivered_count: 0,
-    csv_path: null,
-    xlsx_path: null,
-    error_message: null,
-  }).eq('id', id);
+  // Atomically claim the order before calling Apify. A double-click or concurrent
+  // request therefore cannot start two runs from the same paid order.
+  const { data: claimed, error: claimError } = await admin
+    .from('orders')
+    .update({
+      status: 'processing',
+      requested_count: leadCount,
+      delivery_email: deliveryEmail,
+      search_filters: search ?? {},
+      apify_input: actorInput,
+      started_at: new Date().toISOString(),
+      completed_at: null,
+      delivered_count: 0,
+      csv_path: null,
+      xlsx_path: null,
+      error_message: null,
+    })
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .eq('status', order.status)
+    .in('payment_status', Array.from(SUCCESSFUL_PAYMENT_STATUSES))
+    .select('id')
+    .maybeSingle();
+
+  if (claimError || !claimed) {
+    return NextResponse.json({ error: 'This order has already been started or is no longer available.' }, { status: 409 });
+  }
 
   const apifyResponse = await fetch(`https://api.apify.com/v2/actors/${actorId}/runs?waitForFinish=0&webhooks=${encodeURIComponent(webhooks)}`, {
     method: 'POST',
@@ -141,7 +167,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ? apifyData.error
       : 'Unable to start the Apify lead search.';
 
-    await admin.from('orders').update({ status: 'failed', error_message: message }).eq('id', id);
+    await admin.from('orders').update({ status: 'failed', error_message: message }).eq('id', id).eq('status', 'processing');
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
@@ -149,7 +175,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     status: 'processing',
     apify_run_id: apifyData.data.id,
     apify_dataset_id: apifyData.data.defaultDatasetId ?? null,
-  }).eq('id', id);
+  }).eq('id', id).eq('status', 'processing');
 
   return NextResponse.json({ ok: true, status: apifyData.data.status ?? 'processing', runId: apifyData.data.id });
 }
