@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { buildApifyInput } from '@/lib/search-payload';
+import { buildApifyInput, validateApifyInputAgainstActorSchema } from '@/lib/search-payload';
 import { getSiteUrl } from '@/lib/site';
 
 type StartOrder = {
@@ -82,6 +82,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const token = process.env.APIFY_API_TOKEN;
   if (!actorId || !token) return NextResponse.json({ error: 'Apify is not configured yet.' }, { status: 503 });
   const actorInput = buildApifyInput({ ...(search ?? {}), totalResults: remaining });
+
+  // Validate the exact payload against the actor schema BEFORE claiming the paid order.
+  // Invalid inputs therefore consume neither an attempt nor an Apify run.
+  const schemaCheck = await validateApifyInputAgainstActorSchema(actorId, token, actorInput);
+  if (!schemaCheck.valid) return NextResponse.json({ error: schemaCheck.error }, { status: 400 });
+
   const siteUrl = getSiteUrl();
   const webhookSecret = process.env.APIFY_WEBHOOK_SECRET;
   const completionWebhookUrl = `${siteUrl}/api/webhooks/apify${webhookSecret ? `?secret=${encodeURIComponent(webhookSecret)}` : ''}`;
@@ -108,7 +114,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const runId = apifyData.data.id as string;
   await admin.from('orders').update({ apify_run_id: runId, apify_dataset_id: apifyData.data.defaultDatasetId ?? null }).eq('id', id).eq('status', 'processing');
-  const { count } = await admin.from('search_attempts').select('*', { count: 'exact', head: true }).eq('order_id', id);
   await admin.from('search_attempts').insert({ order_id: id, attempt_number: nextAttempt, source: 'customer', apify_run_id: runId, apify_dataset_id: apifyData.data.defaultDatasetId ?? null, status: 'started', requested_count: remaining, apify_input: actorInput });
 
   return NextResponse.json({ ok: true, status: apifyData.data.status ?? 'processing', runId, requested: remaining, attempt: nextAttempt, attemptsRemaining: (order.max_customer_attempts ?? 3) - nextAttempt });
