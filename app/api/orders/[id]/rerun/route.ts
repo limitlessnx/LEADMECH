@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createServerSupabase } from '@/lib/supabase/server';
-import { buildApifyInput } from '@/lib/search-payload';
+import { buildApifyInput, validateApifyInputAgainstActorSchema } from '@/lib/search-payload';
 import { getSiteUrl } from '@/lib/site';
 
 type RerunOrder = {
@@ -53,9 +53,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (orderError || !order || order.user_id !== user.id) return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
 
-  // Customer retries are deliberately allowed only after a completed/empty search.
-  // A failed Apify run is a provider/system failure and must never be retried by the
-  // customer, otherwise the same paid order can repeatedly consume Apify credits.
+  // Failed provider/system runs are never customer-retryable. This prevents the
+  // exact Unclebazz credit-drain loop from returning.
   if (!['completed', 'no_results'].includes(order.status)) {
     return NextResponse.json({ error: 'This order is not eligible for a customer retry. Failed searches must be reviewed by support.' }, { status: 409 });
   }
@@ -77,6 +76,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const search = order.search_filters ?? {};
   const actorInput = buildApifyInput({ ...search, totalResults: remaining });
+  const schemaCheck = await validateApifyInputAgainstActorSchema(actorId, token, actorInput);
+  if (!schemaCheck.valid) return NextResponse.json({ error: schemaCheck.error }, { status: 400 });
+
   const webhooks = actorWebhooks(order.id);
   const nextAttempt = usedAttempts + 1;
 
