@@ -80,3 +80,36 @@ export function buildApifyInput(form: SearchForm) {
 
   return payload;
 }
+
+export async function validateApifyInputAgainstActorSchema(actorId: string, token: string, input: Record<string, unknown>) {
+  const response = await fetch(`https://api.apify.com/v2/acts/${encodeURIComponent(actorId)}/input-schema`, {
+    headers: { authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) return { valid: true as const, unavailable: true as const };
+
+  const schema = await response.json().catch(() => null) as Record<string, any> | null;
+  const properties = schema?.properties ?? schema?.data?.properties ?? {};
+  const errors: string[] = [];
+
+  for (const [field, value] of Object.entries(input)) {
+    if (!Array.isArray(value)) continue;
+    const fieldSchema = properties[field];
+    const enumValues = fieldSchema?.items?.enum ?? fieldSchema?.enum;
+    if (!Array.isArray(enumValues)) continue;
+    const allowed = new Set(enumValues.map(String));
+    const invalid = value.map(String).filter((item) => !allowed.has(item));
+    if (invalid.length) errors.push(`${field}: ${invalid.join(', ')}`);
+  }
+
+  if (errors.length) {
+    return {
+      valid: false as const,
+      unavailable: false as const,
+      error: `Some selected search values are not supported by the current lead provider: ${errors.join('; ')}. Remove the unsupported selections and try again.`,
+    };
+  }
+
+  return { valid: true as const, unavailable: false as const };
+}
