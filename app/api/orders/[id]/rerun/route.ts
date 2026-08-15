@@ -18,6 +18,7 @@ type RerunOrder = {
   max_customer_attempts: number;
   delivery_email: string | null;
   search_filters: Record<string, unknown> | null;
+  apify_run_id: string | null;
   packages: { lead_count: number } | { lead_count: number }[] | null;
 };
 
@@ -47,16 +48,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const admin = createAdminClient();
   const { data: order, error: orderError } = await admin
     .from('orders')
-    .select('id,order_code,user_id,status,payment_status,requested_count,original_requested_count,delivered_count,remaining_leads,customer_attempts_used,max_customer_attempts,delivery_email,search_filters,packages(lead_count)')
+    .select('id,order_code,user_id,status,payment_status,requested_count,original_requested_count,delivered_count,remaining_leads,customer_attempts_used,max_customer_attempts,delivery_email,search_filters,apify_run_id,packages(lead_count)')
     .eq('id', id)
     .single<RerunOrder>();
 
   if (orderError || !order || order.user_id !== user.id) return NextResponse.json({ error: 'Order not found.' }, { status: 404 });
 
-  // Failed provider/system runs are never customer-retryable. This prevents the
-  // exact Unclebazz credit-drain loop from returning.
-  if (!['completed', 'no_results'].includes(order.status)) {
-    return NextResponse.json({ error: 'This order is not eligible for a customer retry. Failed searches must be reviewed by support.' }, { status: 409 });
+  // A failed order is customer-retryable ONLY when Apify never created a run.
+  // Once an Apify run exists, a failed order is locked and must go to support.
+  // This prevents the old Unclebazz credit-drain loop.
+  const failedBeforeApify = order.status === 'failed' && !order.apify_run_id;
+  const normalCustomerRetry = ['completed', 'no_results'].includes(order.status);
+  if (!failedBeforeApify && !normalCustomerRetry) {
+    return NextResponse.json({ error: 'This order is not eligible for a customer retry. A failed Apify run must be reviewed by support.' }, { status: 409 });
   }
   if (!SUCCESSFUL_PAYMENT_STATUSES.has(order.payment_status ?? '')) return NextResponse.json({ error: 'This order has not been paid.' }, { status: 402 });
 
@@ -75,6 +79,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!actorId || !token) return NextResponse.json({ error: 'Apify is not configured yet.' }, { status: 503 });
 
   const search = order.search_filters ?? {};
+  // The server always derives the quantity from the paid order's locked balance.
   const actorInput = buildApifyInput({ ...search, totalResults: remaining });
   const schemaCheck = await validateApifyInputAgainstActorSchema(actorId, token, actorInput);
   if (!schemaCheck.valid) return NextResponse.json({ error: schemaCheck.error }, { status: 400 });
@@ -84,6 +89,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: claimed, error: claimError } = await admin.from('orders').update({
     status: 'processing',
+    original_requested_count: purchased,
     requested_count: remaining,
     remaining_leads: remaining,
     customer_attempts_used: nextAttempt,
@@ -92,6 +98,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     started_at: new Date().toISOString(),
     completed_at: null,
     error_message: null,
+    apify_run_id: null,
+    apify_dataset_id: null,
   })
     .eq('id', order.id)
     .eq('user_id', user.id)
@@ -112,7 +120,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const apifyData = await apifyResponse.json().catch(() => ({}));
   if (!apifyResponse.ok || !apifyData?.data?.id) {
     const message = typeof apifyData?.error?.message === 'string' ? apifyData.error.message : typeof apifyData?.message === 'string' ? apifyData.message : 'Unable to start the search again.';
-    await admin.from('orders').update({ status: 'failed', error_message: message }).eq('id', id).eq('status', 'processing');
+    await admin.from('orders').update({ status: 'failed', error_message: message, apify_run_id: null, apify_dataset_id: null }).eq('id', id).eq('status', 'processing');
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
