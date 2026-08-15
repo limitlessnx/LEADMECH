@@ -18,13 +18,13 @@ export default async function Dashboard() {
 
   const { data: orders } = await supabase
     .from('orders')
-    .select('id,order_code,status,requested_count,delivered_count,delivery_email,search_filters,csv_path,xlsx_path,error_message,created_at,paid_at,started_at,completed_at,packages(id,name,lead_count,price_usd)')
+    .select('id,order_code,status,payment_status,requested_count,original_requested_count,delivered_count,remaining_leads,customer_attempts_used,max_customer_attempts,delivery_email,search_filters,csv_path,xlsx_path,error_message,apify_run_id,created_at,paid_at,started_at,completed_at,packages(id,name,lead_count,price_usd)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .returns<OrderWithPackage[]>();
 
   const rows = orders ?? [];
-  const totalLeads = rows.reduce((sum, order) => sum + (order.requested_count ?? order.packages?.lead_count ?? 0), 0);
+  const totalLeads = rows.reduce((sum, order) => sum + (order.original_requested_count ?? order.requested_count ?? order.packages?.lead_count ?? 0), 0);
   const completedFiles = rows.filter((order) => order.csv_path || order.xlsx_path).length * 2;
 
   return (
@@ -48,32 +48,41 @@ export default async function Dashboard() {
             <thead><tr><th>Order</th><th>Package</th><th>Status</th><th>Date</th><th>Files / action</th></tr></thead>
             <tbody>
               {rows.map((order) => {
-                const requested = order.requested_count ?? order.packages?.lead_count ?? 0;
+                const purchased = order.original_requested_count ?? order.requested_count ?? order.packages?.lead_count ?? 0;
                 const delivered = order.delivered_count ?? 0;
-                // Customer retries are intentionally limited to searches that completed with
-                // an incomplete/empty result. A failed Apify run must never expose a retry
-                // button because it can repeatedly consume provider credits without producing
-                // a valid fulfillment event.
-                const canSearchAgain = requested > 0 && delivered < requested && ['completed', 'no_results'].includes(order.status);
+                const remaining = order.remaining_leads ?? Math.max(purchased - delivered, 0);
+                const attemptsUsed = order.customer_attempts_used ?? 0;
+                const maxAttempts = order.max_customer_attempts ?? 3;
+                const paymentConfirmed = ['confirmed', 'finished'].includes(order.payment_status ?? '');
+                const canSearchRemaining = purchased > 0 && remaining > 0 && attemptsUsed < maxAttempts && paymentConfirmed && ['completed', 'no_results'].includes(order.status);
+                // A failed order gets exactly one kind of customer retry: only when no
+                // Apify run was created. This is a safe recovery for a pre-run validation/
+                // provider-start failure, not a retry of an actual Apify run.
+                const canRetryFailed = order.status === 'failed' && !order.apify_run_id && remaining > 0 && attemptsUsed < maxAttempts && paymentConfirmed;
                 return (
                   <tr key={order.id}>
                     <td>{order.order_code}</td>
-                    <td>{requested.toLocaleString('en-GB')}</td>
+                    <td>{purchased.toLocaleString('en-GB')}</td>
                     <td><span className={`status ${order.status}`}>{order.status.replaceAll('_', ' ')}</span></td>
                     <td>{new Date(order.created_at).toLocaleDateString('en-GB')}</td>
                     <td>
                       <div className="table-actions">
                         {order.csv_path && <Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=csv`}>CSV</Link>}
                         {order.xlsx_path && <Link className="btn btn-secondary" href={`/api/orders/${order.id}/download?format=xlsx`}>Excel</Link>}
-                        {canSearchAgain && (
+                        {canSearchRemaining && (
                           <form action={`/api/orders/${order.id}/rerun`} method="post">
                             <button className="btn btn-primary" type="submit">Search remaining leads</button>
                           </form>
                         )}
+                        {canRetryFailed && (
+                          <form action={`/api/orders/${order.id}/rerun`} method="post">
+                            <button className="btn btn-primary" type="submit">Retry search</button>
+                          </form>
+                        )}
                         {order.status === 'no_results' && <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Adjust filters</Link>}
                         {(order.status === 'ready_for_search' || order.status === 'paid') && <Link className="btn btn-secondary" href={`/search?order=${order.id}`}>Start</Link>}
-                        {order.status === 'failed' && <span className="muted">Search failed. Contact support.</span>}
-                        {!order.csv_path && !order.xlsx_path && !canSearchAgain && !['no_results', 'ready_for_search', 'paid', 'failed'].includes(order.status) && '-'}
+                        {order.status === 'failed' && !canRetryFailed && <span className="muted">Search failed after a run started. Contact support.</span>}
+                        {!order.csv_path && !order.xlsx_path && !canSearchRemaining && !canRetryFailed && !['no_results', 'ready_for_search', 'paid', 'failed'].includes(order.status) && '-'}
                       </div>
                     </td>
                   </tr>
